@@ -461,6 +461,19 @@ Expected project-owned behavior:
 
 ## 16. Non-Functional Requirements
 
+### 16.0 Language Policy
+
+All repository artifacts must be written in English.
+
+This requirement applies to:
+
+- source code comments
+- README content
+- technical and product documentation
+- UI labels and user-visible copy
+- configuration notes intended for developers
+- test names and test descriptions where practical
+
 ### 16.1 Maintainability
 
 - modular project structure
