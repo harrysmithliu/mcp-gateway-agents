@@ -1,0 +1,2 @@
+"""Trade source adapter package."""
+

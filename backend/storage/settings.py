@@ -1,0 +1,26 @@
+from dataclasses import dataclass
+from functools import lru_cache
+import os
+
+
+@dataclass(slots=True)
+class Settings:
+    app_name: str = os.getenv("APP_NAME", "mcp-gateway-agents")
+    app_env: str = os.getenv("APP_ENV", "local")
+    api_host: str = os.getenv("API_HOST", "127.0.0.1")
+    api_port: int = int(os.getenv("API_PORT", "8000"))
+    streamlit_server_port: int = int(os.getenv("STREAMLIT_SERVER_PORT", "8501"))
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/mcp_gateway_agents",
+    )
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    upstream_trade_project: str = os.getenv("UPSTREAM_TRADE_PROJECT", "")
+    upstream_risk_project: str = os.getenv("UPSTREAM_RISK_PROJECT", "")
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
+
