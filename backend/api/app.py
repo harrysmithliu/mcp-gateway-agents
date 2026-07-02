@@ -9,11 +9,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        summary="Phase 1 skeleton for the MCP gateway agent platform.",
+        summary="Skeleton for the MCP gateway agent platform.",
     )
     app.include_router(health_router)
     return app
 
 
 app = create_app()
-

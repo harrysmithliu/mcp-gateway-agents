@@ -12,3 +12,7 @@ build/
 .env
 texts/
 
+# Keep integration adapters and docs in git, but isolate vendored data/model payloads.
+integrations/sources/**/vendor/**/artifacts/
+integrations/sources/**/vendor/**/*.csv
+integrations/sources/**/vendor/**/*.joblib

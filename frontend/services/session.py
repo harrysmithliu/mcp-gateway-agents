@@ -2,7 +2,6 @@ import streamlit as st
 
 
 ROLE_OPTIONS = [
-    "viewer",
     "analyst",
     "risk_operator",
     "supervisor",
@@ -16,4 +15,3 @@ def get_active_role() -> str:
 
 def set_active_role(role: str) -> None:
     st.session_state["active_role"] = role
-

@@ -12,6 +12,4 @@ def health() -> dict[str, str]:
         "status": "ok",
         "app_name": settings.app_name,
         "environment": settings.app_env,
-        "phase": "phase-1",
     }
-

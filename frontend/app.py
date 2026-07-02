@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 st.title("MCP Gateway + Agentic Crypto Risk Platform")
-st.caption("Phase 1 frontend shell with demo login and role-switch entry.")
+st.caption("Frontend shell with demo login and role-switch entry.")
 
 with st.sidebar:
     st.subheader("Demo Access")
@@ -25,7 +25,7 @@ st.write(
     "risk scoring, alerts, and audit review."
 )
 
-st.markdown("### Phase 1 Modules")
+st.markdown("### Current Modules")
 col1, col2, col3 = st.columns(3)
 col1.info("Backend health app and route skeleton are ready for API expansion.")
 col2.info("Integration contracts are in place for trade and risk source adapters.")
@@ -37,4 +37,3 @@ st.write(
     "Use the pages in the left navigation as placeholders for the future login, dashboard, "
     "and operations experience."
 )
-

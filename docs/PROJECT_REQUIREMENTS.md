@@ -1,246 +1,159 @@
-# MCP Gateway + Agentic Crypto Risk Platform Requirements
+# MCP Gateway Agents Project Requirements
 
-## 1. Document Purpose
+## 1. Purpose
 
-This document defines the final target plan for the current project under `mcp-gateway-agents/`.
+This document defines the executable product and engineering requirements for the project rooted at `mcp-gateway-agents/`.
 
-The project goal is to build, from scratch in the current directory, a demo-ready agentic application for crypto trading risk operations that combines:
+The project is a Python monolith for crypto trading intelligence and risk operations. It must provide a project-owned Streamlit workspace, a FastAPI backend, a LangChain-based agent orchestration layer, an MCP gateway, local trade and risk integrations, persistent operational data, and a path to retrieval, cache, and guardrails.
 
-- a unified project-owned frontend
-- a FastAPI backend
-- an agent engine powered by Anthropic models
-- an MCP gateway for tool orchestration
-- a local data platform with relational and vector retrieval support
-- one-way capability and data reuse from the existing trade-analysis and risk-model projects
+This document is the implementation baseline.
 
-This document also defines staged delivery requirements so the development process can be executed with clear, testable milestones.
+## 2. Product Summary
 
-## 2. Background And Inputs
+The system is an internal AI copilot for trading analysis and risk operations. It allows authorized users to:
 
-### 2.1 Existing reusable assets
-
-The project may reuse the following assets as upstream sources only:
-
-- Trade analysis source:
-  `/Users/harryliu/Documents/workspace/DataAnalysisPrj/crypto_trade_plot`
-- Risk control source:
-  `/Users/harryliu/Documents/workspace/DataAnalysisPrj/ml_risk_control`
-- Anthropic API Key:
-  supplied externally at runtime
-
-### 2.2 Mandatory constraints
-
-- The frontend must be implemented inside this project and become the only user-facing entry.
-- The existing trade-analysis and risk-control projects are not treated as user-facing frontends.
-- Data and reusable capabilities flow one-way from those two projects into this project.
-- Initial implementation should avoid requiring the upstream projects to expose remote APIs.
-- Upstream reuse should happen through local adapters first, with service extraction optional later.
-
-## 3. Product Vision
-
-Build a crypto trading risk copilot that lets different internal roles:
-
-- inspect market, account, order, and trade behavior
-- ask natural-language questions about suspicious trading activity
-- trigger risk scoring on accounts or cohorts
+- investigate unusual account, wallet, order, and trade activity
+- ask natural-language questions about suspicious behavior
+- run single-account and batch risk scoring
 - retrieve policy, model, and case knowledge with evidence
-- create and manage alerts, recommendations, and review actions
-- keep a full audit trail of agent reasoning support data, tool calls, and operator actions
+- create alerts, recommendations, and review actions
+- keep an auditable record of user actions, tool calls, and system decisions
 
-The end state is a closed loop:
+The only user-facing entry must be the Streamlit application in this repository.
 
-1. user asks from the project-owned frontend
-2. backend authenticates and authorizes the request
-3. agent plans and invokes tools through the MCP gateway
-4. system reads cache, database, knowledge base, and reusable upstream capabilities
-5. guardrails review the answer and action proposal
-6. response is rendered in frontend
-7. alerts, actions, and audit records are persisted back into this project
+## 3. Core Architecture
 
-## 4. Business Scenario
+The minimum target architecture is:
 
-The demo scenario is crypto trading risk operations.
-
-Representative prompts:
-
-- "Which accounts became riskier in the last 24 hours?"
-- "Why was this wallet flagged as suspicious?"
-- "Show me top accounts by abnormal turnover and high model risk."
-- "Run batch risk scoring for accounts with repeated failed withdrawals."
-- "Create a level-2 review case for the highest-risk accounts."
-
-## 5. Goals And Non-Goals
-
-### 5.1 Goals
-
-- Build a full-stack demo with a project-owned frontend and backend.
-- Integrate trade analytics and risk scoring into one agent workflow.
-- Implement MCP-based tool orchestration for trade, risk, knowledge, and ops actions.
-- Provide RBAC, audit trail, cache, and knowledge retrieval.
-- Persist enough mock operational data to support realistic end-to-end flows.
-- Make each major development phase independently verifiable.
-
-### 5.2 Non-goals
-
-- No real-money execution or exchange connectivity in phase 1.
-- No requirement to productionize upstream projects as remote services in the MVP.
-- No full retraining pipeline redesign for the risk model.
-- No multi-tenant SaaS hardening in the first delivery.
-- No irreversible enforcement action automation without explicit approval logic.
-
-## 6. Target Users And RBAC
-
-### 6.1 Primary user types
-
-- Risk analyst
-- Risk operator
-- Supervisor
-- Platform administrator
-
-### 6.2 RBAC roles
-
-The system should define at least the following roles:
-
-#### `viewer`
-
-- can view dashboards, chat outputs, alert lists, case history, and reports
-- cannot trigger scoring, create alerts, or approve actions
-
-#### `analyst`
-
-- inherits viewer permissions
-- can query accounts, run analysis, trigger single or batch scoring, and draft findings
-- cannot execute high-impact operational actions
-
-#### `risk_operator`
-
-- inherits analyst permissions
-- can create alerts, update alert status, add case notes, and submit action recommendations
-- cannot approve the highest-risk actions alone
-
-#### `supervisor`
-
-- inherits risk_operator permissions
-- can approve or reject sensitive actions such as account freeze, restrictions, or case closure
-
-#### `admin`
-
-- full platform administration
-- can manage users, roles, system settings, knowledge base administration, and audit review
-
-### 6.3 Optional non-human role
-
-#### `service_account`
-
-- used for internal sync jobs, scheduled indexing, and backend-only service execution
-
-## 7. System Scope
-
-### 7.1 In scope
-
-- Streamlit frontend in this repository
-- FastAPI backend in this repository
-- Anthropic-backed agent orchestration
-- MCP gateway and tool registry
-- PostgreSQL-backed application data model
-- vector retrieval for policy and knowledge search
-- Redis cache for response reuse and short-term conversation state
-- local adapters to trade-analysis and risk-model source projects
-- mock data generation and data seeding
-- audit logging and operator action tracking
-
-### 7.2 Out of scope for MVP
-
-- real exchange order placement
-- live market data subscriptions
-- multi-region deployment
-- external identity provider integration
-- automatic model retraining and drift remediation loops
-
-## 8. High-Level Architecture
-
-```mermaid
-flowchart TD
-    UI["Project Streamlit UI"] --> API["FastAPI Backend"]
-    API --> RBAC["RBAC / AuthZ"]
-    API --> AGENT["Agent Engine"]
-
-    AGENT --> REDIS["Redis Cache / Chat Context"]
-    AGENT --> RAG["Embedding + Vector Retrieval"]
-    AGENT --> MCP["MCP Gateway"]
-    AGENT --> LLM["Anthropic LLM"]
-    AGENT --> GUARD["Guardrails"]
-
-    RAG --> PGV["PostgreSQL + Vector Store"]
-    MCP --> TRADE["Trade Source Adapters"]
-    MCP --> RISK["Risk Source Adapters"]
-    MCP --> OPS["Alert / Case / Action Tools"]
-
-    TRADE --> UP1["crypto_trade_plot"]
-    RISK --> UP2["ml_risk_control"]
-
-    API --> DB["Project PostgreSQL"]
-    API --> AUDIT["Audit Events"]
-    AUDIT --> DB
-    OPS --> DB
+```text
+Streamlit UI
+  -> FastAPI Backend
+  -> RBAC / Session Control
+  -> LangChain Agent Engine
+     -> Redis Cache / Chat Context
+     -> RAG Retrieval Layer (Embedding + Vector Store)
+     -> MCP Gateway
+        -> TRADE tools
+        -> RISK tools
+        -> KNOWLEDGE tools
+        -> OPS tools
+     -> Claude-compatible LLM
+     -> Guardrails
+  -> PostgreSQL / Project Storage
+  -> Streamlit response rendering
 ```
 
-## 9. Data Flow Principles
+The first runnable closed loop must be:
 
-### 9.1 Frontend ownership
+`Streamlit -> FastAPI -> Agent -> MCP tools -> Postgres/Redis -> Streamlit`
 
-This project owns the only frontend used in the solution. Upstream Streamlit or HTML pages are treated as source material, not as the final primary interface.
+The current implementation baseline must use LangChain for agent orchestration and Claude integration, while keeping the agent state, tool routing, and workflow boundaries compatible with a future migration or expansion to LangGraph.
 
-### 9.2 One-way upstream flow
+Within the architecture, the retrieval stack must be explicitly treated as a RAG Retrieval Layer. This layer owns document chunking, embeddings, vector lookup, and evidence assembly for agent responses.
 
-Upstream projects only feed this project through:
+Embeddings and retrieval metadata must be persisted in the project-owned PostgreSQL data store rather than in a separate mandatory external vector database. The preferred implementation is PostgreSQL with `pgvector`, with `knowledge_documents`, `knowledge_chunks`, and `chunk_embeddings` serving as the canonical persistence model for RAG data.
 
-- source data
-- local callable functions
-- model artifacts
-- diagnostics metadata
-- report assets when useful
+## 4. Product Scope
 
-This project should not depend on upstream UI navigation to complete user flows.
+### 4.1 In scope
 
-### 9.3 Progressive decoupling
+- project-owned Streamlit UI
+- FastAPI service endpoints
+- RBAC-aware session and access control
+- LangChain-based agent orchestration with tool calling
+- MCP tool registry and tool execution layer
+- project-owned PostgreSQL schemas, migrations, and seeds
+- Redis-backed cache and short-term conversation context
+- local adapters to trade and risk source assets
+- RAG-based knowledge retrieval over internal documents
+- alerting, case handling, and audit persistence
+- local Docker Compose for developer runtime
 
-The integration path should be:
+### 4.2 Out of scope for the first major release
 
-1. local adapter access
-2. internal stable contracts
-3. optional later API extraction if deployment needs justify it
+- real exchange order execution
+- live upstream service dependencies as a requirement
+- customer self-registration
+- irreversible automated enforcement without approval
+- multi-tenant SaaS hardening
+- training pipeline redesign for the risk model
 
-## 10. Integration Strategy
+## 5. Business Users And RBAC
 
-### 10.1 API requirement decision
+### 5.1 Supported roles
 
-For the MVP:
+- `analyst`
+- `risk_operator`
+- `supervisor`
+- `admin`
 
-- trade side does not need to expose an external API
-- risk side does not need to expose an external API
+### 5.2 Permission intent
 
-The project should access them through internal adapters that wrap:
+`analyst`
 
-- file readers
-- Python modules
-- persisted artifacts
-- report-generation helpers
+- can investigate accounts and wallets
+- can query trade metrics and abnormal activity
+- can run single-account and batch risk scoring
+- can draft investigation summaries
+- cannot execute sensitive operational actions
 
-### 10.2 Future service extraction trigger
+`risk_operator`
 
-Remote APIs for upstream components should only be introduced when at least one of the following becomes true:
+- inherits analyst capabilities
+- can create and update alerts
+- can submit manual review notes and action recommendations
+- cannot approve the highest-impact actions alone
 
-- independent deployment is required
-- scaling needs diverge
-- permission boundaries require process isolation
-- non-Python consumers need stable network access
+`supervisor`
 
-## 11. Repository Structure Requirements
+- inherits risk operator capabilities
+- can approve or reject sensitive actions such as freeze or release decisions
+- can close high-severity cases
 
-The repository should be restructured intentionally rather than using a flat `integrations` layout.
+`admin`
 
-Recommended structure:
+- can manage users, roles, system switches, knowledge content, and audit access
+
+### 5.3 Login and identity rules
+
+- Login is the only platform entry.
+- Users are provisioned by the backend or admin workflows. Self-registration is not supported.
+- One browser tab represents exactly one active identity.
+- Multi-tab usage is supported.
+- A backend switch must control identity concurrency:
+  - `0`: multi-tab is allowed, but only one identity may be active across the browser session
+  - `1`: multi-tab with multiple identities is allowed
+
+## 6. Upstream Inputs And Reuse Rules
+
+The platform reuses fixed local assets in `integrations/` for the current version and must preserve a clean path to future upstream API integration.
+
+### 6.1 Trade-side source assets
+
+- `integrations/sources/trade_source/vendor/crypto_trade_plot/generate_mock_data.py`
+- `integrations/sources/trade_source/vendor/crypto_trade_plot/crypto_transactions_30d.csv`
+- `integrations/sources/trade_source/vendor/crypto_trade_plot/README.md`
+
+### 6.2 Risk-side source assets
+
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/xgboost_credit_risk.joblib`
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/feature_schema.json`
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/run_summary.json`
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/threshold_selection_report.json`
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/cost_analysis_report.json`
+- `integrations/sources/risk_source/vendor/ml_risk_control/artifacts/xgboost/calibration_report.json`
+- `integrations/sources/risk_source/vendor/ml_risk_control/README.md`
+
+### 6.3 Reuse rules
+
+- Upstream assets are source material, not user-facing applications.
+- This project must not depend on upstream frontends to complete workflows.
+- The first implementation should prefer local adapters over network APIs.
+- All upstream-specific paths, formats, and field names must stay inside `integrations/sources/`.
+
+## 7. Repository Structure
+
+The project structure must remain aligned with the following ownership model:
 
 ```text
 mcp-gateway-agents/
@@ -253,15 +166,16 @@ mcp-gateway-agents/
 ├── backend/
 │   ├── api/
 │   ├── agent/
-│   ├── mcp_gateway/
 │   ├── auth/
 │   ├── guardrails/
+│   ├── retrieval/
+│   ├── mcp_gateway/
+│   ├── services/
 │   └── storage/
 ├── integrations/
 │   ├── sources/
 │   │   ├── trade_source/
 │   │   └── risk_source/
-│   ├── tools/
 │   └── contracts/
 ├── data/
 │   ├── seeds/
@@ -279,103 +193,152 @@ mcp-gateway-agents/
 └── README.md
 ```
 
-### 11.1 Integration layer responsibilities
+## 8. Module Responsibilities
 
-#### `integrations/sources`
+### 8.1 `frontend/`
 
-- own upstream access logic
-- normalize external data structures
-- isolate file paths, artifact paths, and module import specifics
+- owns the only user-facing interface
+- contains login, dashboard, chat, scoring, alert, and audit views
+- calls the backend through project-owned service wrappers
 
-#### `integrations/tools`
+### 8.2 `backend/api/`
 
-- expose agent-usable tool functions
-- translate business requests into source calls and DB writes
+- exposes HTTP endpoints
+- validates requests
+- applies authentication and authorization
+- persists session and audit context
 
-#### `integrations/contracts`
+### 8.3 `backend/agent/`
 
-- define canonical models used inside this project
-- prevent direct leakage of upstream schema complexity into the rest of the app
+- owns LangChain-based orchestration logic
+- integrates Claude-compatible chat models through LangChain abstractions
+- chooses tool calls based on role and request type
+- consumes RAG retrieval results, MCP tool outputs, cache context, and guardrail checks
+- keeps message state, tool routing, and execution flow structured so later LangGraph adoption does not require API or frontend rewrites
+- returns structured responses for UI rendering
 
-## 12. Functional Requirements
+### 8.4 `backend/mcp_gateway/`
 
-### 12.1 Frontend
+- registers tools and resources
+- provides stable internal invocation contracts
+- exposes trade, risk, retrieval, and operations capabilities as MCP tools
+- isolates tool discovery and tool registration from agent logic
+- does not own core business logic, RAG implementation, or upstream-specific parsing
 
-The frontend must include:
+### 8.5 `backend/retrieval/`
 
-- login or role-switch demo entry
-- dashboard home
-- natural-language agent chat interface
-- account search and account detail view
-- alerts and cases page
-- scoring page for single account and cohort scoring
-- report and evidence panel
-- operation history / audit viewer for privileged users
+- owns the RAG Retrieval Layer implementation
+- handles document chunking, embedding generation, vector index access, and retrieval assembly
+- prepares evidence payloads and citations for agent responses and knowledge-facing APIs
+- uses the project-owned PostgreSQL vector store, preferably via `pgvector`, as the default persistence and query layer for embeddings
 
-### 12.2 Backend API
+### 8.6 `backend/services/`
 
-The backend must include:
+- owns project-native business services such as alerts, case actions, audit workflows, and knowledge administration
+- coordinates storage, retrieval, and upstream-backed domain services behind backend-facing interfaces
+
+### 8.7 `backend/storage/`
+
+- owns relational persistence access patterns, repository helpers, and storage configuration
+- supports both operational data access and vector-store integration boundaries where needed
+- owns the PostgreSQL persistence boundary for retrieval records and vector-backed knowledge tables
+
+### 8.8 `integrations/sources/`
+
+- loads trade-side data and risk-side model artifacts
+- normalizes upstream data to internal contracts
+- owns all upstream path and format knowledge
+
+### 8.9 `integrations/contracts/`
+
+- defines canonical internal models
+- prevents leakage of upstream-specific schemas into the rest of the codebase
+
+## 9. Functional Requirements
+
+### 9.1 Frontend
+
+The frontend must support:
+
+- login or role-switch entry
+- chat workspace
+- trade dashboard
+- risk scoring workspace
+- alert handling workspace
+- evidence and report panel
+- audit review page for privileged roles
+
+### 9.2 Backend API
+
+The backend must provide at least:
 
 - health endpoint
-- auth/session endpoints or demo auth bootstrap
+- auth or demo session bootstrap endpoint
 - chat request endpoint
-- account search endpoint
-- risk score trigger endpoints
-- alerts and case management endpoints
+- account lookup and account detail endpoints
+- single-account and batch scoring endpoints
+- alert and case endpoints
 - audit query endpoint
-- knowledge indexing and retrieval endpoints for admin workflows
+- knowledge management and retrieval endpoints for privileged roles
 
-### 12.3 Agent engine
+### 9.3 Agent behavior
 
 The agent must support:
 
+- LangChain as the default orchestration framework for prompt flow, model binding, and tool invocation
+- role-aware response shaping
 - role-aware tool selection
-- conversation memory
-- retrieval-augmented answers
-- structured tool calling
+- structured tool execution
 - evidence-backed recommendations
-- refusal or downgrade behavior when user lacks permissions
+- refusal or downgrade behavior for unauthorized requests
+- a response structure that can grow from plain text into text plus evidence plus actions
 
-### 12.4 MCP gateway
+The agent layer must not bypass LangChain by scattering direct model calls throughout API routes or tool modules.
 
-The MCP layer must expose at least these tool groups:
+Knowledge-facing MCP capabilities must be backed by backend-native retrieval or service modules rather than by upstream integration adapters alone.
 
-- trade metrics and anomaly query tools
-- risk scoring tools
-- knowledge retrieval tools
-- alert and case operation tools
-- audit lookup tools
+### 9.4 MCP tool surface
 
-### 12.5 Guardrails
+Minimum tool inventory:
+
+- `trade.query_metrics`
+- `trade.query_account_activity`
+- `trade.render_report`
+- `risk.score_account`
+- `risk.batch_score`
+- `knowledge.search`
+- `ops.create_alert_or_action`
+- `audit.fetch_recent_events`
+
+### 9.5 Guardrails
 
 Guardrails must cover:
 
-- role-based action blocking
-- missing-evidence warning on sensitive conclusions
-- unsafe action review requirement
-- output sanity checks for unsupported claims
-- prompt injection resistance in retrieved knowledge inputs
+- blocking of unapproved sensitive actions
+- required evidence for high-impact recommendations
+- unsupported-claim checks
+- prompt injection resistance for retrieved knowledge
+- role-based action restrictions
 
-## 13. Data Model Requirements
+## 10. Data Model Requirements
 
-The project should add and seed enough database structures to support a realistic demo.
+The platform must support the following table families.
 
-### 13.1 Identity and access tables
+### 10.1 Identity and access
 
 - `users`
 - `roles`
 - `user_role_bindings`
-- `service_accounts`
 - `api_tokens`
 
-### 13.2 Conversation and audit tables
+### 10.2 Conversation and audit
 
 - `chat_sessions`
 - `chat_messages`
 - `tool_call_logs`
 - `audit_events`
 
-### 13.3 Trading domain tables
+### 10.3 Trading domain
 
 - `accounts`
 - `wallets`
@@ -384,356 +347,396 @@ The project should add and seed enough database structures to support a realisti
 - `positions`
 - `price_ticks`
 
-### 13.4 Risk and operations tables
+### 10.4 Risk and operations
 
-- `risk_feature_snapshots`
 - `risk_scores`
+- `risk_features_snapshot`
 - `risk_alerts`
-- `case_records`
 - `case_actions`
-- `review_decisions`
 
-### 13.5 Knowledge and retrieval tables
+### 10.5 Knowledge and retrieval
 
-- `knowledge_documents`
-- `knowledge_chunks`
-- `knowledge_embeddings`
+- `knowledge_documents`: source documents and document-level metadata
+- `knowledge_chunks`: chunked retrieval units derived from source documents
+- `chunk_embeddings`: embeddings persisted in the project-owned PostgreSQL vector store, preferably through `pgvector`
 
-## 14. Mock Data Requirements
+## 11. Seed And Mock Data Requirements
 
-The project must generate or seed the following data categories:
+The repository must contain enough local data to demonstrate realistic end-to-end workflows.
 
-### 14.1 Trading activity data
+### 11.1 Trading data
 
-- accounts and wallets
-- crypto orders and trades
-- asset prices over time
-- abnormal trade bursts
-- suspicious transfer-like patterns
+- orders
+- fills or trades
+- positions
+- wallet-level or account-level summaries
+- price series
+- anomaly windows
 
-### 14.2 Risk feature and score data
+### 11.2 Risk data
 
-- risk-relevant account attributes
-- model-ready feature snapshots
-- historical risk scores
-- labeled high-risk and low-risk example accounts
+- account age
+- large-amount frequency
+- failed transaction rate
+- unusual-hour activity
+- KYC tier
+- risk feature snapshots
+- single and batch score results
 
-### 14.3 Knowledge base data
+### 11.3 Knowledge data
 
-- risk rules and policy summaries
-- model card excerpts and threshold guidance
-- historical incident examples
-- case handling SOP documents
+- risk rules
+- model card content
+- threshold guidance
+- abnormal trading case examples
+- investigation SOP documents
 
-### 14.4 Demo users
+### 11.4 Demo identities
 
-- at least one seeded user for each RBAC role
+- at least one seeded user for each supported role
 
-## 15. Upstream Reuse Requirements
+## 12. Closed-Loop Extensibility Requirements
 
-### 15.1 Trade analysis reuse
+The earliest runnable closed loop is under schedule pressure and must be delivered quickly, but its code must not trap the project in a dead-end design.
 
-The project should reuse and adapt:
+The first closed-loop implementation must therefore preserve the following extension seams from day one:
 
-- mock data patterns from `crypto_trade_plot`
-- existing transaction analysis logic where practical
-- Plotly chart generation patterns
+- request and response DTOs for chat, scoring, and alert actions must be versionable
+- MCP tools must be registered through a registry abstraction, not hard-coded inside the agent
+- LangChain-specific model, prompt, and tool wiring must stay inside `backend/agent/` so the rest of the system depends on internal service contracts rather than framework details
+- RAG implementation must live in `backend/retrieval/` or an equivalent backend-native module rather than being modeled as an upstream integration concern
+- retrieval records, chunk metadata, and embeddings must remain persistable inside the project-owned PostgreSQL vector store so later replay, re-indexing, and local operation do not depend on a mandatory external vector database
+- the agent must call tool adapters through interfaces or service boundaries that can later add retrieval, cache, and guardrails without breaking callers
+- the orchestration state model must be compatible with later LangGraph-style node or graph execution if the workflow becomes more complex
+- source adapters must emit canonical internal contracts, never raw upstream payloads
+- the frontend service layer must call typed backend endpoints, not import backend modules directly
+- all sensitive actions must already flow through an approval-aware operation model, even if the first release uses simple approval stubs
+- persistence must keep chat, audit, and tool logs separate so later replay and analytics can be added
+- retrieval, cache, and guardrail hooks must exist in the orchestration flow even if their first implementation is minimal
 
-Expected project-owned behavior:
+## 13. Non-Functional Requirements
 
-- ingest or transform upstream-like trading data into current project tables
-- expose metrics and summaries via tools and frontend panels
-- optionally embed or reproduce Plotly visual output inside this project
+### 13.1 Language
 
-### 15.2 Risk control reuse
+All repository artifacts must be written in English, including documentation, comments, labels, and developer-facing notes.
 
-The project should reuse and adapt:
+### 13.2 Maintainability
 
-- persisted XGBoost artifacts
-- local inference service concepts
-- diagnostic metadata and model reporting outputs
-
-Expected project-owned behavior:
-
-- load model artifacts from the upstream risk project
-- run single-account and batch scoring inside this project
-- store resulting scores and explanations in current project tables
-
-## 16. Non-Functional Requirements
-
-### 16.0 Language Policy
-
-All repository artifacts must be written in English.
-
-This requirement applies to:
-
-- source code comments
-- README content
-- technical and product documentation
-- UI labels and user-visible copy
-- configuration notes intended for developers
-- test names and test descriptions where practical
-
-### 16.1 Maintainability
-
-- modular project structure
-- clear contracts between frontend, backend, integrations, and tools
+- clear module boundaries
 - environment-driven configuration
-- repeatable local setup
+- replaceable adapters
+- isolated vendor-specific logic
 
-### 16.2 Observability
+### 13.3 Testability
 
-- structured application logs
-- tool invocation logs
-- audit event persistence
-- error surfaces suitable for UI display and debugging
+- unit tests for adapters, contracts, RBAC checks, backend service logic, retrieval logic, and MCP tool logic
+- integration tests for API and tool paths
+- smoke tests for startup and the main workflow
 
-### 16.3 Security
+### 13.4 Security
 
-- role-based authorization
-- secret configuration through environment variables only
-- no hard-coded API keys
-- action approval boundaries for high-risk operations
+- no hard-coded secrets
+- role-based access control on all sensitive operations
+- audit logging for tool calls and operator actions
 
-### 16.4 Testability
+### 13.5 Observability
 
-- unit coverage for adapters, tools, RBAC checks, and scoring wrappers
-- integration coverage for API to agent to tool paths
-- smoke coverage for frontend startup and seeded scenario flows
+- structured logs
+- request correlation where practical
+- explicit tool execution logging
+- retrieval pipeline and ingestion logging for chunking, embedding, vector persistence, and search behavior
+- actionable error messages for UI and developer debugging
 
-## 17. Suggested MCP Tool Contract Surface
+## 14. Delivery Strategy
 
-Minimum tool inventory:
+Development must be organized into independently pushable batches. Every batch must:
 
-### `trade.query_metrics`
+- keep the repository in a runnable or at least test-passing state
+- include updated docs for the new surface area
+- include tests or executable verification steps for the delivered scope
+- be safe to push to git as a standalone checkpoint
 
-- returns aggregated trade metrics for a time window, account, asset, or anomaly slice
+Phase grouping:
 
-### `trade.query_account_activity`
+- Phase 1: Batch 1 to Batch 4
+- Phase 2: Batch 5 to Batch 7
 
-- returns detailed account activity summary and suspicious signals
+The first runnable closed loop must be completed by Batch 2.
 
-### `trade.render_dashboard_payload`
+## 15. Batch Plan
 
-- returns frontend-ready chart data or references for visualization
+### Batch 1. Foundations And Stable Contracts
 
-### `risk.score_account`
+Goal:
 
-- runs model scoring for one account and returns probability, band, threshold decision, and explanation summary
+- establish the project shape needed for fast follow-on delivery
 
-### `risk.batch_score_accounts`
+Scope:
 
-- scores a list or query-defined cohort of accounts and persists results
+- repository structure
+- configuration model
+- FastAPI entrypoint
+- Streamlit entrypoint
+- base RBAC model
+- LangChain dependency and agent module boundary
+- retrieval module boundary and service module boundary
+- canonical contracts
+- initial SQL schemas for IAM, conversation, audit, trading, risk, and knowledge
+- local runtime and seed scaffolding
 
-### `knowledge.search`
+Deliverables:
 
-- returns top matching policy, model, and case knowledge chunks with citations
+- working backend bootstrap with health endpoint
+- working frontend bootstrap with login or role-switch entry
+- settings and environment template
+- agent module scaffold prepared for LangChain-based orchestration
+- retrieval module scaffold for chunking, embeddings, and vector access
+- backend service module scaffold for project-native operations workflows
+- first migration set for required schemas and core tables
+- initial internal contracts under `integrations/contracts/`
+- source adapter skeletons and MCP registry skeleton
+- document describing the product and requirements
 
-### `ops.create_alert`
+Completion metrics:
 
-- creates a risk alert tied to an account, reason, and evidence set
+- backend starts locally and `GET /health` returns success
+- frontend starts locally and renders the entry page
+- migrations apply successfully on a fresh database
+- at least one test validates boot or contract behavior
+- the repository declares the LangChain-based agent direction clearly enough that later implementation will not default to ad hoc orchestration
+- the repository structure makes it clear that RAG and operations logic are backend-native capabilities rather than upstream integration modules
+- no module outside `integrations/sources/` depends on vendor paths or vendor field names
 
-### `ops.submit_case_action`
+Git push boundary:
 
-- records proposed actions such as review, limit, or freeze request
+- one commit or a small coherent commit set that leaves local startup intact
 
-### `audit.fetch_recent_events`
+### Batch 2. Earliest Runnable Closed Loop
 
-- returns recent operator and tool execution history
+Goal:
 
-## 18. Phased Delivery Plan
+- deliver the smallest end-to-end workflow that proves the target architecture
 
-Development must be divided into large stages with verifiable outputs.
+Scope:
 
-### Phase 1. Foundation And Project Skeleton
+- Streamlit chat submission
+- FastAPI chat endpoint
+- LangChain-based agent orchestration service
+- backend-native retrieval and operations service wiring
+- MCP tool registry and first tool implementations
+- PostgreSQL reads and writes for sessions, messages, and audit events
+- Redis usage for short-term request context or minimal cache
+- trade metrics query path
+- single-account risk scoring path
+- alert creation path
 
-#### Objectives
+Deliverables:
 
-- establish repo structure
-- define config and environment model
-- create base frontend and backend entrypoints
-- create initial SQL migration layout
-- define integration contracts
+- a user can enter through Streamlit, submit a request, receive an answer, and create at least one persisted operational record
+- first LangChain runnable path that binds Claude, prompt state, and MCP-exposed tools through the project agent service
+- first MCP-exposed business path backed by upstream adapters for trade and risk plus backend-native services for operations
+- first implementations of:
+  - `trade.query_metrics`
+  - `risk.score_account`
+  - `ops.create_alert_or_action`
+- persisted chat sessions, chat messages, tool logs, and audit events
+- seeded trading and risk demo data sufficient for the closed loop
+- smoke test or scripted verification for the end-to-end flow
 
-#### Required deliverables
+Completion metrics:
 
-- structured directory skeleton
-- project README with startup instructions
-- environment template file
-- first migration files for core schemas
-- placeholder frontend and backend apps booting successfully
+- the flow `Streamlit -> FastAPI -> Agent -> MCP tools -> Postgres/Redis -> Streamlit` runs locally
+- the runnable agent path uses LangChain for model and tool orchestration instead of direct ad hoc model calls
+- one analyst prompt returns trade or risk output grounded in project data
+- one alert or action record is written to the database
+- audit records capture the user request and tool usage
+- batch output remains extensible through the interfaces defined in Section 12
 
-#### Verification criteria
+Git push boundary:
 
-- repository tree matches planned structure
-- backend health endpoint responds successfully
-- frontend home page renders successfully
-- migrations can be applied locally
+- a standalone push that another developer can pull, start, seed, and demo without extra hidden setup
 
-### Phase 2. Data Platform And Seeded Domain Model
+### Batch 3. Expanded Phase-1 Domain Surface
 
-#### Objectives
+Goal:
 
-- implement PostgreSQL schema
-- seed RBAC users and trading domain data
-- seed knowledge documents
-- implement data access layer
+- complete the remaining essential product surface around the first closed loop
 
-#### Required deliverables
+Scope:
 
-- executable migrations
-- seed scripts
-- populated local demo database
-- sample datasets and seed logs
+- account search and account detail APIs
+- batch scoring
+- richer trade activity queries
+- alert status updates and case action flows
+- fuller domain seeds for accounts, wallets, orders, trades, positions, price ticks, and risk features
+- role-aware API restrictions beyond basic gating
 
-#### Verification criteria
+Deliverables:
 
-- all required tables exist
-- seeded users and roles are queryable
-- seeded accounts, trades, scores, and knowledge docs are queryable
-- repeatable reset-and-seed workflow succeeds
+- account investigation views and APIs
+- `risk.batch_score`
+- richer `trade.query_account_activity`
+- `audit.fetch_recent_events`
+- seeded role-based demo users
+- integration tests for role-sensitive endpoints
 
-### Phase 3. Upstream Adapters And Internal Contracts
+Completion metrics:
 
-#### Objectives
+- analyst, risk operator, supervisor, and admin flows diverge correctly by permission
+- batch scoring persists multiple results
+- account and alert views are backed by real project data
+- core Phase-1 domain tables are populated and queryable
 
-- connect the trade-analysis source through local adapters
-- connect the risk-model source through artifact-backed adapters
-- normalize upstream outputs into internal contracts
+Git push boundary:
 
-#### Required deliverables
+- the repository remains runnable and demoable with expanded workflows
 
-- `integrations/sources/trade_source/*`
-- `integrations/sources/risk_source/*`
-- canonical contract models
-- adapter unit tests
+### Batch 4. Phase-1 Completion And Operational Hardening
 
-#### Verification criteria
+Goal:
 
-- trade adapter can load and transform source data into current project shape
-- risk adapter can load the model artifact and produce a valid score
-- upstream path details stay isolated to the adapter layer
+- complete the remainder of the first release surface without changing the earlier architecture
 
-### Phase 4. Backend Services, RBAC, And API Surface
+Scope:
 
-#### Objectives
+- multi-page frontend workspace
+- report and evidence panel
+- approval-ready supervisor actions
+- better audit review surfaces
+- stronger error handling and structured logging
+- compose-based local startup
 
-- implement auth demo flow and RBAC middleware
-- expose domain APIs
-- persist chat, alerts, and audit events
+Deliverables:
 
-#### Required deliverables
+- dashboard, chat, scoring, alerts, and audit pages
+- approval-aware sensitive action flow
+- local compose stack for required services
+- operator-oriented runbook for local setup
 
-- auth or demo role-switch implementation
-- API endpoints for chat, accounts, scores, alerts, and audit queries
-- RBAC enforcement layer
-- API integration tests
+Completion metrics:
 
-#### Verification criteria
+- an analyst can investigate and draft findings
+- a risk operator can create and update alerts
+- a supervisor can approve or reject a sensitive action
+- local compose startup runs the required services successfully
 
-- different roles see different allowed behaviors
-- unauthorized actions are blocked with clear responses
-- core API routes pass integration tests
+Git push boundary:
 
-### Phase 5. MCP Gateway And Tooling Layer
+- a self-contained Phase-1 product milestone suitable for internal demo
 
-#### Objectives
+### Batch 5. Retrieval And Evidence Layer
 
-- define MCP tool registry
-- expose trade, risk, knowledge, ops, and audit tools
-- ensure tools are structured and testable independently
+Goal:
 
-#### Required deliverables
+- add evidence-backed answers and knowledge administration
 
-- MCP gateway module
-- initial tool implementations
-- tool contract tests
+Scope:
 
-#### Verification criteria
+- document ingestion
+- chunking
+- embeddings
+- vector retrieval
+- PostgreSQL and `pgvector` enablement for project-owned vector persistence
+- knowledge search tool
+- evidence rendering in UI
+- LangChain retrieval hooks or chains integrated into the agent flow
+- MCP exposure of retrieval-backed knowledge capabilities through `backend/mcp_gateway/`
 
-- each required tool can be invoked successfully
-- tool outputs follow stable schemas
-- tool logs are persisted or emitted in a structured way
+Deliverables:
 
-### Phase 6. Agent, RAG, Cache, And Guardrails
+- `knowledge.search`
+- backend-native retrieval service for chunking, embeddings, vector lookup, and evidence assembly
+- migrations and storage setup for project-owned PostgreSQL vector persistence, preferably via `pgvector`
+- seeded knowledge documents and chunk records
+- embeddings written to `chunk_embeddings`
+- retrieval-backed answers with citations
+- admin workflow for knowledge refresh or indexing
 
-#### Objectives
+Completion metrics:
 
-- wire Anthropic model into agent engine
-- add Redis-backed short-term memory and cache
-- add document chunking, embedding, and retrieval flow
-- add guardrails around sensitive outputs
+- a knowledge-backed prompt returns cited evidence
+- embeddings are persisted in `chunk_embeddings` inside the project-owned PostgreSQL vector store and are queryable by the retrieval flow
+- retrieved content is visible in the UI
+- ingestion can be rerun safely on local data
+- the retrieval flow does not require a mandatory external vector database
 
-#### Required deliverables
+Git push boundary:
 
-- working agent orchestration flow
-- RAG ingestion and retrieval pipeline
-- cache integration
-- guardrail validators and tests
+- the product still runs even if retrieval is disabled by configuration
 
-#### Verification criteria
+### Batch 6. Cache, Chat History, And Guardrails
 
-- repeated similar prompt can hit cache when appropriate
-- knowledge-backed prompt returns citations
-- restricted action prompt is downgraded or blocked based on role
-- unsupported confident claims are reduced by evidence checks
+Goal:
 
-### Phase 7. Frontend Experience And Closed-Loop Workflow
+- improve efficiency, continuity, and safety
 
-#### Objectives
+Scope:
 
-- build the main user workflow in Streamlit
-- connect chat, dashboard, scoring, and alert pages
-- render project-owned charts and evidence panels
+- Redis-backed response cache
+- chat history retrieval
+- sensitive-action guardrails
+- evidence requirement checks
+- unsupported-claim checks
+- LangChain memory or message-history integration at the service boundary
 
-#### Required deliverables
+Deliverables:
 
-- multipage frontend
-- account view and alert workflow
-- chat UI with citations and action outputs
-- dashboard visualizations based on project data
+- cache-aware orchestration
+- session history replay support
+- guardrail policy enforcement
+- tests for restricted actions and unsupported outputs
 
-#### Verification criteria
+Completion metrics:
 
-- analyst can complete an end-to-end investigation flow from UI
-- operator can create an alert and submit a case action from UI
-- supervisor can approve or reject a sensitive action from UI
+- repeated eligible prompts can hit cache
+- chat context is restored within a session
+- high-impact actions are blocked or downgraded without required role and evidence
 
-### Phase 8. End-To-End Validation, Packaging, And Documentation
+Git push boundary:
 
-#### Objectives
+- behavior changes are covered by tests and remain explainable to operators
 
-- run end-to-end smoke tests
-- add Docker Compose packaging
-- finalize runbook and architecture docs
+### Batch 7. Phase-2 Finish, QA, And Delivery Readiness
 
-#### Required deliverables
+Goal:
 
-- compose stack for app services
-- smoke test scripts
-- final architecture and runbook documentation
+- make the system easier to operate, verify, and hand over
 
-#### Verification criteria
+Scope:
 
-- compose stack boots required services
-- seeded demo scenario runs end-to-end
-- documentation is sufficient for a fresh local setup
+- full smoke coverage
+- test data reset workflows
+- admin-facing operational settings
+- documentation cleanup
+- packaging and developer ergonomics
 
-## 19. Definition Of Done
+Deliverables:
 
-The MVP is considered complete when all of the following are true:
+- repeatable seed and reset commands
+- smoke tests for the main flows
+- operational documentation
+- final local delivery package
 
-- project-owned frontend is the main working user entry
-- backend, agent, MCP tools, data store, and audit trail are connected
-- upstream trade and risk capabilities are reused through stable local adapters
-- at least one realistic analyst-to-operator-to-supervisor flow is demonstrable
-- all major phases have concrete deliverables and verification evidence
-- the repository contains enough documentation for another developer to run and inspect the system locally
+Completion metrics:
 
-## 20. Recommended Immediate Next Steps
+- a fresh developer can set up, seed, run, and verify the system from repository docs
+- main flows have automated or scripted verification
+- the product can be handed off without tribal knowledge
 
-1. Create the repository skeleton and configuration files.
-2. Define the SQL migrations for RBAC, chat, trading, risk, and knowledge tables.
-3. Implement source adapters before building the full agent layer.
-4. Stand up FastAPI and Streamlit early so later work can be integrated continuously.
-5. Add the first end-to-end demo flow as soon as the adapters and RBAC are available.
+Git push boundary:
+
+- the repository is ready for regular collaborative iteration
+
+## 16. Definition Of Done
+
+The project is considered to meet this requirements document when all of the following are true:
+
+- the Streamlit application is the only user-facing entry
+- the backend, agent, MCP tools, storage, and audit trail work together
+- the agent layer is implemented through LangChain-based orchestration rather than ad hoc direct model wiring
+- local trade and risk integrations are usable through stable internal contracts
+- at least one realistic analyst-to-operator-to-supervisor workflow is demonstrated
+- evidence-backed knowledge retrieval exists
+- RAG embeddings and retrieval records are persisted in the project-owned PostgreSQL vector store, preferably through `pgvector`
+- cache, chat history, and guardrails are integrated
+- every delivery batch has explicit deliverables and measurable completion criteria

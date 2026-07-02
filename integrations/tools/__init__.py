@@ -1,2 +1,0 @@
-"""Agent-callable tool layer."""
-

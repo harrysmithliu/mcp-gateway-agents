@@ -44,4 +44,3 @@ CREATE TABLE IF NOT EXISTS audit.audit_events (
     event_payload JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
