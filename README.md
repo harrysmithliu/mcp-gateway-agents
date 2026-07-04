@@ -1,4 +1,4 @@
-# mcp-gateway-agents
+# Trading and Risk Agentic Platform
 
 AI agentic crypto risk operations platform with an MCP gateway, Streamlit frontend, FastAPI backend, LLM orchestration, retrieval, cache, and local adapters for trading analytics and risk scoring.
 

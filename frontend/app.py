@@ -1,5 +1,6 @@
 import streamlit as st
 
+from frontend.services.chat import ChatApiResponse, post_chat_message
 from frontend.services.session import ROLE_OPTIONS, get_active_role, set_active_role
 
 
@@ -9,7 +10,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("MCP Gateway + Agentic Crypto Risk Platform")
+st.title("Trading and Risk Agentic Platform")
 st.caption("Frontend shell with demo login and role-switch entry.")
 
 with st.sidebar:
@@ -37,3 +38,33 @@ st.write(
     "Use the pages in the left navigation as placeholders for the future login, dashboard, "
     "and operations experience."
 )
+
+st.markdown("### Demo Chat")
+default_prompt = "Review this account for trade risk and recommend next steps."
+
+with st.form("demo_chat_form"):
+    message_text = st.text_area("Message", value=default_prompt, height=120)
+    submitted = st.form_submit_button("Send To Chat API", use_container_width=True)
+
+if submitted:
+    try:
+        chat_response: ChatApiResponse = post_chat_message(
+            user_role=get_active_role(),
+            message_text=message_text,
+        )
+        st.success("Chat response received.")
+        st.write(chat_response.reply_text)
+
+        if chat_response.tool_names:
+            st.caption("Suggested tools")
+            st.write(chat_response.tool_names)
+
+        if chat_response.evidence:
+            st.caption("Evidence")
+            st.write(chat_response.evidence)
+
+        if chat_response.actions:
+            st.caption("Actions")
+            st.write(chat_response.actions)
+    except RuntimeError as exc:
+        st.error(str(exc))
