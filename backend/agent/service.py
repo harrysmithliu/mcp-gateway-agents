@@ -75,6 +75,9 @@ DEFAULT_EVIDENCE_NOTE = "Defaulting to knowledge retrieval until more tools are 
 DEFAULT_LANGCHAIN_MODEL_PROVIDER = "anthropic"
 DEFAULT_LANGCHAIN_MODEL_NAME = "claude-3-5-sonnet"
 DEFAULT_LANGCHAIN_PLANNER_MODE = "tool-routing-placeholder"
+PLANNER_OVERRIDE_SOURCE = "planner_override"
+LANGCHAIN_MODEL_SOURCE = "langchain_model"
+RULE_FALLBACK_SOURCE = "rule_fallback"
 
 
 @dataclass(slots=True)
@@ -179,17 +182,57 @@ class AgentService:
         registry: ToolRegistry,
     ) -> str:
         tool_catalog = self.build_langchain_tool_catalog(registry)
+        output_contract = self.build_langchain_planner_output_contract(registry)
         available_tool_names = ", ".join(
             tool_entry["tool_name"] for tool_entry in tool_catalog
         )
         return (
             "You are the trading and risk operations planner. "
             "Select the best matching tools from the available tool list. "
-            "Return only tool names as a comma-separated list. "
+            "Return only tool names that appear in the allowed tool list. "
+            f"Output contract: format={output_contract['format']}; "
+            f"allow_multiple={output_contract['allow_multiple']}; "
+            f"fallback_tool={output_contract['fallback_tool']}. "
             f"User role: {normalized_role or 'unknown'}. "
             f"Available tools: {available_tool_names}. "
             f"User request: {normalized_text}"
         )
+
+    def build_langchain_planner_output_contract(
+        self,
+        registry: ToolRegistry,
+    ) -> dict[str, object]:
+        return {
+            "format": "comma-separated tool names",
+            "allow_multiple": True,
+            "allowed_tool_names": registry.list_tool_names(),
+            "fallback_tool": DEFAULT_TOOL_NAME,
+        }
+
+    def build_langchain_message_history_payload(self) -> dict[str, object]:
+        return {
+            "session_id": None,
+            "history_source": "placeholder",
+            "messages": [],
+        }
+
+    def build_langchain_retrieval_context_payload(self) -> dict[str, object]:
+        return {
+            "rag_enabled": False,
+            "retrieved_chunks": [],
+            "citations": [],
+        }
+
+    def build_langchain_guardrail_context_payload(
+        self,
+        normalized_role: str,
+    ) -> dict[str, object]:
+        return {
+            "user_role": normalized_role or "unknown",
+            "input_checks": [],
+            "output_constraints": [],
+            "escalation_required": False,
+        }
 
     def build_langchain_planner_payload(
         self,
@@ -199,10 +242,16 @@ class AgentService:
     ) -> dict[str, object]:
         planner_config = self.build_langchain_planner_config()
         tool_catalog = self.build_langchain_tool_catalog(registry)
+        output_contract = self.build_langchain_planner_output_contract(registry)
         planner_prompt = self.build_langchain_planner_prompt(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
             registry=registry,
+        )
+        message_history = self.build_langchain_message_history_payload()
+        retrieval_context = self.build_langchain_retrieval_context_payload()
+        guardrail_context = self.build_langchain_guardrail_context_payload(
+            normalized_role=normalized_role,
         )
         return {
             "planner_config": {
@@ -214,6 +263,10 @@ class AgentService:
             "user_role": normalized_role or "unknown",
             "message_text": normalized_text,
             "tool_catalog": tool_catalog,
+            "output_contract": output_contract,
+            "message_history": message_history,
+            "retrieval_context": retrieval_context,
+            "guardrail_context": guardrail_context,
             "planner_prompt": planner_prompt,
         }
 
@@ -231,11 +284,23 @@ class AgentService:
         except Exception:
             return None
 
-    def extract_tool_names_from_langchain_output(
+    def build_planner_source_evidence(self, planner_source: str) -> str:
+        source_evidence_by_name = {
+            PLANNER_OVERRIDE_SOURCE: "Planner source: override output.",
+            LANGCHAIN_MODEL_SOURCE: "Planner source: LangChain model output.",
+            RULE_FALLBACK_SOURCE: "Planner source: keyword fallback routing.",
+        }
+        return source_evidence_by_name.get(
+            planner_source,
+            "Planner source: unspecified routing path.",
+        )
+
+    def parse_langchain_planner_output(
         self,
         planner_output_text: str,
         registry: ToolRegistry,
     ) -> list[str]:
+        """Parse free-text planner output into registry-recognized tool names."""
         lowered_output = planner_output_text.lower()
         selected_tool_names: list[str] = []
         for tool_name in registry.list_tool_names():
@@ -303,7 +368,7 @@ class AgentService:
             registry=registry,
         )
         if self.planner_override_output is not None:
-            selected_tool_names = self.extract_tool_names_from_langchain_output(
+            selected_tool_names = self.parse_langchain_planner_output(
                 planner_output_text=self.planner_override_output,
                 registry=registry,
             )
@@ -315,6 +380,7 @@ class AgentService:
                         registry=registry,
                     )
                 )
+                evidence.append(self.build_planner_source_evidence(PLANNER_OVERRIDE_SOURCE))
                 evidence.append(
                     "Planner override selected tools before registry-backed execution."
                 )
@@ -326,7 +392,7 @@ class AgentService:
             try:
                 planner_response = planner_model.invoke(planner_payload["planner_prompt"])
                 planner_output_text = str(getattr(planner_response, "content", planner_response))
-                selected_tool_names = self.extract_tool_names_from_langchain_output(
+                selected_tool_names = self.parse_langchain_planner_output(
                     planner_output_text=planner_output_text,
                     registry=registry,
                 )
@@ -341,15 +407,18 @@ class AgentService:
                     evidence.append(
                         "LangChain planner selected tools before registry-backed execution."
                     )
+                    evidence.append(self.build_planner_source_evidence(LANGCHAIN_MODEL_SOURCE))
                     return tool_names, planned_tool_calls, evidence, actions
             except Exception:
                 pass
 
-        return self.plan_tool_calls(
+        tool_names, planned_tool_calls, evidence, actions = self.plan_tool_calls(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
             registry=registry,
         )
+        evidence.append(self.build_planner_source_evidence(RULE_FALLBACK_SOURCE))
+        return tool_names, planned_tool_calls, evidence, actions
 
     def invoke_planned_tool_calls(
         self,

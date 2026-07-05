@@ -136,6 +136,112 @@ def test_langchain_planner_override_returns_tool_plan() -> None:
     assert actions == []
 
 
+def test_langchain_planner_payload_includes_output_contract() -> None:
+    agent_service = AgentService()
+    registry = build_default_registry()
+
+    planner_payload = agent_service.build_langchain_planner_payload(
+        normalized_role="analyst",
+        normalized_text="Please review trade and risk signals.",
+        registry=registry,
+    )
+
+    output_contract = planner_payload["output_contract"]
+
+    assert output_contract["format"] == "comma-separated tool names"
+    assert output_contract["allow_multiple"] is True
+    assert output_contract["fallback_tool"] == "knowledge.search"
+    assert output_contract["allowed_tool_names"] == registry.list_tool_names()
+
+
+def test_langchain_planner_success_takes_priority_over_rule_fallback(monkeypatch) -> None:
+    class SuccessfulPlanner:
+        def invoke(self, _prompt: str) -> str:
+            return "risk.score_account"
+
+    agent_service = AgentService()
+    registry = build_default_registry()
+    monkeypatch.setattr(
+        AgentService,
+        "init_langchain_chat_model",
+        lambda self: SuccessfulPlanner(),
+    )
+
+    tool_names, planned_tool_calls, evidence, actions = (
+        agent_service.plan_tool_calls_with_langchain(
+            normalized_role="analyst",
+            normalized_text="Please search the policy playbook for this case.",
+            registry=registry,
+        )
+    )
+
+    assert tool_names == ["risk.score_account"]
+    assert [item.tool_name for item in planned_tool_calls] == tool_names
+    assert "LangChain planner selected tools before registry-backed execution." in evidence
+    assert (
+        "RAG-backed citations will be attached after retrieval wiring is implemented."
+        not in evidence
+    )
+    assert actions == []
+
+
+def test_langchain_planner_invalid_output_falls_back_to_rule_routing(monkeypatch) -> None:
+    class InvalidPlanner:
+        def invoke(self, _prompt: str) -> str:
+            return "unknown.tool"
+
+    agent_service = AgentService()
+    registry = build_default_registry()
+    monkeypatch.setattr(
+        AgentService,
+        "init_langchain_chat_model",
+        lambda self: InvalidPlanner(),
+    )
+
+    tool_names, planned_tool_calls, evidence, actions = (
+        agent_service.plan_tool_calls_with_langchain(
+            normalized_role="analyst",
+            normalized_text="Please search the policy playbook for this case.",
+            registry=registry,
+        )
+    )
+
+    assert tool_names == ["knowledge.search"]
+    assert [item.tool_name for item in planned_tool_calls] == tool_names
+    assert "LangChain planner selected tools before registry-backed execution." not in evidence
+    assert "RAG-backed citations will be attached after retrieval wiring is implemented." in evidence
+    assert actions == []
+
+
+def test_langchain_planner_empty_output_falls_back_to_rule_routing(monkeypatch) -> None:
+    class EmptyPlanner:
+        def invoke(self, _prompt: str) -> str:
+            return ""
+
+    agent_service = AgentService()
+    registry = build_default_registry()
+    monkeypatch.setattr(
+        AgentService,
+        "init_langchain_chat_model",
+        lambda self: EmptyPlanner(),
+    )
+
+    tool_names, planned_tool_calls, evidence, actions = (
+        agent_service.plan_tool_calls_with_langchain(
+            normalized_role="analyst",
+            normalized_text="Please search the policy playbook for this case.",
+            registry=registry,
+        )
+    )
+
+    assert tool_names == ["knowledge.search"]
+    assert [item.tool_name for item in planned_tool_calls] == tool_names
+    assert "Planner source: keyword fallback routing." in evidence
+    assert "LangChain planner selected tools before registry-backed execution." not in evidence
+    assert "RAG-backed citations will be attached after retrieval wiring is implemented." in evidence
+    assert actions == []
+
+
 def test_langchain_planner_falls_back_to_rule_routing(monkeypatch) -> None:
     class FailingPlanner:
         def invoke(self, _prompt: str) -> str:
