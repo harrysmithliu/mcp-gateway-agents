@@ -49,6 +49,10 @@ The first runnable closed loop must be:
 
 The current implementation baseline must use LangChain for agent orchestration and Claude integration, while keeping the agent state, tool routing, and workflow boundaries compatible with a future migration or expansion to LangGraph.
 
+For LangChain implementation, Batch 2 must treat the official `langchain-ai/langchain` repository and `docs.langchain.com` as the primary references. The default Python dependency path should consider introducing `langchain` first, and then adding narrower ecosystem packages or provider integrations only as needed by the chosen model, retrieval, or observability stack.
+
+For MCP implementation, Batch 2 may use a project-native MCP-compatible registry abstraction to deliver the earliest runnable loop. From Batch 3 onward, the gateway must treat the official `modelcontextprotocol/python-sdk` documentation as the primary reference and consider introducing standard SDK resources such as `MCPServer` and `Client`, while selecting the stable production-appropriate SDK release line at implementation time.
+
 Within the architecture, the retrieval stack must be explicitly treated as a RAG Retrieval Layer. This layer owns document chunking, embeddings, vector lookup, and evidence assembly for agent responses.
 
 Embeddings and retrieval metadata must be persisted in the project-owned PostgreSQL data store rather than in a separate mandatory external vector database. The preferred implementation is PostgreSQL with `pgvector`, with `knowledge_documents`, `knowledge_chunks`, and `chunk_embeddings` serving as the canonical persistence model for RAG data.
@@ -224,6 +228,7 @@ mcp-gateway-agents/
 - exposes trade, risk, retrieval, and operations capabilities as MCP tools
 - isolates tool discovery and tool registration from agent logic
 - does not own core business logic, RAG implementation, or upstream-specific parsing
+- may use a project-native registry abstraction in Batch 2, but from Batch 3 onward should align to the official `modelcontextprotocol/python-sdk` and consider standard SDK resources such as `MCPServer` and `Client`
 
 ### 8.5 `backend/retrieval/`
 
@@ -522,8 +527,11 @@ Scope:
 - Streamlit chat submission
 - FastAPI chat endpoint
 - LangChain-based agent orchestration service
+- official `langchain-ai/langchain` repository and `docs.langchain.com` treated as the primary implementation references
+- base `langchain` package line considered first, with narrower ecosystem packages or provider integrations added only as needed
 - backend-native retrieval and operations service wiring
 - MCP tool registry and first tool implementations
+- project-native MCP-compatible registration and invocation boundaries for the earliest runnable loop
 - PostgreSQL reads and writes for sessions, messages, and audit events
 - Redis usage for short-term request context or minimal cache
 - trade metrics query path
@@ -570,6 +578,8 @@ Scope:
 - alert status updates and case action flows
 - fuller domain seeds for accounts, wallets, orders, trades, positions, price ticks, and risk features
 - role-aware API restrictions beyond basic gating
+- convergence from project-native MCP abstraction to the official `modelcontextprotocol/python-sdk`
+- consideration of official SDK-based server/client lifecycle patterns using standard resources such as `MCPServer` and `Client`
 
 Deliverables:
 
@@ -579,6 +589,7 @@ Deliverables:
 - `audit.fetch_recent_events`
 - seeded role-based demo users
 - integration tests for role-sensitive endpoints
+- MCP gateway design aligned with the official `modelcontextprotocol/python-sdk` documentation, with standard SDK resources evaluated for production adoption
 
 Completion metrics:
 

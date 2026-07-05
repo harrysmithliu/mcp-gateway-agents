@@ -1,5 +1,16 @@
 from dataclasses import dataclass, field
 
+from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
+
+
+@dataclass(slots=True)
+class PlannedToolCall:
+    """Structured placeholder for the next tool invocation plan."""
+
+    tool_name: str
+    domain: str
+    description: str
+
 
 @dataclass(slots=True)
 class AgentResponse:
@@ -7,6 +18,8 @@ class AgentResponse:
 
     reply_text: str
     tool_names: list[str] = field(default_factory=list)
+    planned_tool_calls: list[PlannedToolCall] = field(default_factory=list)
+    tool_invocation_results: list[ToolInvocationResult] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
 
@@ -67,6 +80,7 @@ class AgentService:
         normalized_role = user_role.strip().lower()
         normalized_text = message_text.strip()
         lowered_text = normalized_text.lower()
+        registry = build_default_registry()
 
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
@@ -84,6 +98,8 @@ class AgentService:
             )
 
         tool_names: list[str] = []
+        planned_tool_calls: list[PlannedToolCall] = []
+        tool_invocation_results: list[ToolInvocationResult] = []
         evidence: list[str] = []
         actions: list[str] = []
 
@@ -91,7 +107,18 @@ class AgentService:
             if not any(keyword in lowered_text for keyword in rule.keywords):
                 continue
 
+            tool_definition = registry.get_tool(rule.tool_name)
+            if tool_definition is None:
+                continue
+
             tool_names.append(rule.tool_name)
+            planned_tool_calls.append(
+                PlannedToolCall(
+                    tool_name=tool_definition.name,
+                    domain=tool_definition.domain,
+                    description=tool_definition.description,
+                )
+            )
 
             if rule.evidence_note:
                 evidence.append(rule.evidence_note)
@@ -104,15 +131,44 @@ class AgentService:
                 )
 
         if not tool_names:
-            tool_names.append(DEFAULT_TOOL_NAME)
-            evidence.append(DEFAULT_EVIDENCE_NOTE)
+            tool_definition = registry.get_tool(DEFAULT_TOOL_NAME)
+            if tool_definition is not None:
+                tool_names.append(DEFAULT_TOOL_NAME)
+                planned_tool_calls.append(
+                    PlannedToolCall(
+                        tool_name=tool_definition.name,
+                        domain=tool_definition.domain,
+                        description=tool_definition.description,
+                    )
+                )
+                evidence.append(DEFAULT_EVIDENCE_NOTE)
+
+        if planned_tool_calls:
+            request_payload = {
+                "user_role": normalized_role or "unknown",
+                "message_text": normalized_text,
+            }
+            for planned_tool_call in planned_tool_calls:
+                tool_invocation_result = registry.invoke(
+                    tool_name=planned_tool_call.tool_name,
+                    request_payload=request_payload,
+                )
+                tool_invocation_results.append(tool_invocation_result)
+                evidence.append(
+                    "Tool invocation completed for "
+                    f"{planned_tool_call.tool_name} "
+                    f"with status {tool_invocation_result.invocation_status}."
+                )
 
         return AgentResponse(
             reply_text=(
                 f"Prepared a placeholder agent response for the {normalized_role or 'unknown'} "
-                "role. The API layer can route this into LangChain and MCP execution next."
+                "role. The API layer can route this into LangChain and registry-backed MCP "
+                "execution next."
             ),
             tool_names=tool_names,
+            planned_tool_calls=planned_tool_calls,
+            tool_invocation_results=tool_invocation_results,
             evidence=evidence,
             actions=actions,
         )
