@@ -7,7 +7,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from backend.agent.service import AgentService
 from backend.api.app import app
+from backend.mcp_gateway.registry import build_default_registry
 
 
 def test_chat_route_returns_structured_response() -> None:
@@ -111,3 +113,51 @@ def test_tool_routes_return_completed_invocation_results() -> None:
         assert payload["invocation_status"] == "completed"
         assert payload["request_payload"]["query"] == query
         assert isinstance(payload["response_payload"], dict)
+
+
+def test_langchain_planner_override_returns_tool_plan() -> None:
+    agent_service = AgentService(
+        planner_override_output="knowledge.search, trade.query_metrics"
+    )
+    registry = build_default_registry()
+
+    tool_names, planned_tool_calls, evidence, actions = (
+        agent_service.plan_tool_calls_with_langchain(
+            normalized_role="analyst",
+            normalized_text="Search policy guidance and inspect wallet volume.",
+            registry=registry,
+        )
+    )
+
+    assert tool_names == ["knowledge.search", "trade.query_metrics"]
+    assert [item.tool_name for item in planned_tool_calls] == tool_names
+    assert "Planner override selected tools before registry-backed execution." in evidence
+    assert "RAG-backed citations will be attached after retrieval wiring is implemented." in evidence
+    assert actions == []
+
+
+def test_langchain_planner_falls_back_to_rule_routing(monkeypatch) -> None:
+    class FailingPlanner:
+        def invoke(self, _prompt: str) -> str:
+            raise RuntimeError("planner failed")
+
+    agent_service = AgentService()
+    registry = build_default_registry()
+    monkeypatch.setattr(
+        AgentService,
+        "init_langchain_chat_model",
+        lambda self: FailingPlanner(),
+    )
+
+    tool_names, planned_tool_calls, evidence, actions = (
+        agent_service.plan_tool_calls_with_langchain(
+            normalized_role="analyst",
+            normalized_text="Please search the policy playbook for this case.",
+            registry=registry,
+        )
+    )
+
+    assert tool_names == ["knowledge.search"]
+    assert [item.tool_name for item in planned_tool_calls] == tool_names
+    assert "RAG-backed citations will be attached after retrieval wiring is implemented." in evidence
+    assert actions == []
