@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 
+from backend.api.dependencies import build_application_container
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.health import router as health_router
+from backend.api.routes.tools import router as tools_router
 from backend.storage.settings import get_settings
 
 
@@ -12,7 +14,9 @@ def create_app() -> FastAPI:
         version="0.1.0",
         summary="Skeleton for the MCP gateway agent platform.",
     )
+    app.state.container = build_application_container()
     app.include_router(chat_router)
+    app.include_router(tools_router)
     app.include_router(health_router)
     return app
 

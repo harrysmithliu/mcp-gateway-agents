@@ -1,49 +1,40 @@
-import re
 from dataclasses import dataclass, field
 
-from backend.mcp_gateway.registry import ToolInvocationResult, ToolRegistry, build_default_registry
-
-
-@dataclass(slots=True)
-class PlannedToolCall:
-    """Structured placeholder for the next tool invocation plan."""
-
-    tool_name: str
-    domain: str
-    description: str
-
-
-@dataclass(slots=True)
-class ChatHistoryMessage:
-    """Minimal request-supplied chat history message for planner context."""
-
-    role: str
-    content: str
-
-
-@dataclass(slots=True)
-class AgentResponse:
-    """Structured placeholder response for the future chat workflow."""
-
-    reply_text: str
-    tool_names: list[str] = field(default_factory=list)
-    planned_tool_calls: list[PlannedToolCall] = field(default_factory=list)
-    tool_invocation_results: list[ToolInvocationResult] = field(default_factory=list)
-    evidence: list[str] = field(default_factory=list)
-    actions: list[str] = field(default_factory=list)
-    planner_result: "PlannerResult | None" = None
-
-
-@dataclass(slots=True)
-class PlannerResult:
-    """Structured planner trace for the current LangChain selection path."""
-
-    planner_source: str
-    raw_output_text: str | None = None
-    candidate_tool_names: list[str] = field(default_factory=list)
-    selected_tool_names: list[str] = field(default_factory=list)
-    used_fallback: bool = False
-    fallback_reason: str | None = None
+from backend.agent.models import (
+    AgentResponse,
+    ChatCommand,
+    ChatHistoryMessage,
+    PlannedToolCall,
+    PlannerResult,
+)
+from backend.agent.planning.langchain import (
+    DEFAULT_LANGCHAIN_MODEL_NAME,
+    DEFAULT_LANGCHAIN_MODEL_PROVIDER,
+    DEFAULT_LANGCHAIN_PLANNER_MODE,
+    LANGCHAIN_MODEL_SOURCE,
+    PLANNER_OVERRIDE_SOURCE,
+    RULE_FALLBACK_SOURCE,
+    build_planner_source_evidence,
+    init_langchain_chat_model,
+)
+from backend.agent.planning.parser import (
+    extract_langchain_planner_output_candidates,
+    parse_langchain_planner_output,
+)
+from backend.agent.planning.prompt import (
+    LangChainPlannerConfig,
+    build_langchain_guardrail_context_prompt,
+    build_langchain_message_history_payload,
+    build_langchain_planner_output_contract,
+    build_langchain_planner_payload,
+    build_langchain_planner_prompt,
+    build_langchain_retrieval_context_prompt,
+    build_langchain_tool_catalog,
+)
+from backend.agent.ports import ToolGatewayPort
+from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
+from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
+from backend.retrieval.service import RetrievalService
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,20 +47,6 @@ class ToolRoutingRule:
     privileged_action: str | None = None
     fallback_action: str | None = None
 
-
-@dataclass(frozen=True, slots=True)
-class LangChainPlannerConfig:
-    """Placeholder planner config before LangChain model wiring is enabled."""
-
-    package_name: str
-    model_provider: str
-    model_name: str
-    planner_mode: str
-
-
-SENSITIVE_ACTION_KEYWORDS = ("freeze", "release", "unlock")
-SENSITIVE_ACTION_ALLOWED_ROLES = frozenset({"supervisor", "admin"})
-ACTION_ENABLED_ROLES = frozenset({"risk_operator", "supervisor", "admin"})
 
 TOOL_ROUTING_RULES = (
     ToolRoutingRule(
@@ -94,12 +71,6 @@ TOOL_ROUTING_RULES = (
 )
 DEFAULT_TOOL_NAME = "knowledge.search"
 DEFAULT_EVIDENCE_NOTE = "Defaulting to knowledge retrieval until more tools are wired."
-DEFAULT_LANGCHAIN_MODEL_PROVIDER = "anthropic"
-DEFAULT_LANGCHAIN_MODEL_NAME = "claude-3-5-sonnet"
-DEFAULT_LANGCHAIN_PLANNER_MODE = "tool-routing-placeholder"
-PLANNER_OVERRIDE_SOURCE = "planner_override"
-LANGCHAIN_MODEL_SOURCE = "langchain_model"
-RULE_FALLBACK_SOURCE = "rule_fallback"
 
 
 @dataclass(slots=True)
@@ -108,6 +79,8 @@ class AgentService:
 
     provider_name: str = "claude-compatible"
     planner_override_output: str | None = None
+    retrieval_service: RetrievalService = field(default_factory=RetrievalService)
+    guardrail_policy: GuardrailPolicy = field(default_factory=GuardrailPolicy)
 
     def describe(self) -> str:
         return (
@@ -119,7 +92,7 @@ class AgentService:
         self,
         normalized_role: str,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> tuple[list[str], list[PlannedToolCall], list[str], list[str]]:
         lowered_text = normalized_text.lower()
         tool_names: list[str] = []
@@ -179,64 +152,35 @@ class AgentService:
 
     def build_langchain_tool_catalog(
         self,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> list[dict[str, str]]:
-        tool_catalog: list[dict[str, str]] = []
-        for tool_name in registry.list_tool_names():
-            tool_definition = registry.get_tool(tool_name)
-            if tool_definition is None:
-                continue
-
-            tool_catalog.append(
-                {
-                    "tool_name": tool_definition.name,
-                    "domain": tool_definition.domain,
-                    "description": tool_definition.description,
-                }
-            )
-
-        return tool_catalog
+        return build_langchain_tool_catalog(registry)
 
     def build_langchain_planner_prompt(
         self,
         normalized_role: str,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
         retrieval_context: dict[str, object],
         guardrail_context: dict[str, object],
     ) -> str:
         output_contract = self.build_langchain_planner_output_contract(registry)
-        available_tool_names = ", ".join(output_contract["allowed_tool_names"])
-        retrieval_context_prompt = self.build_langchain_retrieval_context_prompt(
-            retrieval_context
-        )
-        guardrail_context_prompt = self.build_langchain_guardrail_context_prompt(
-            guardrail_context
-        )
-        return (
-            "You are the trading and risk operations planner. "
-            "Select the best matching tools from the available tool list. "
-            "Return only tool names that appear in the allowed tool list. "
-            f"Output contract: format={output_contract['format']}; "
-            f"allow_multiple={output_contract['allow_multiple']}; "
-            f"fallback_tool={output_contract['fallback_tool']}. "
-            f"User role: {normalized_role or 'unknown'}. "
-            f"Available tools: {available_tool_names}. "
-            f"{retrieval_context_prompt} "
-            f"{guardrail_context_prompt} "
-            f"User request: {normalized_text}"
+        return build_langchain_planner_prompt(
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
+            output_contract=output_contract,
+            retrieval_context=retrieval_context,
+            guardrail_context=guardrail_context,
         )
 
     def build_langchain_planner_output_contract(
         self,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> dict[str, object]:
-        return {
-            "format": "comma-separated tool names",
-            "allow_multiple": True,
-            "allowed_tool_names": registry.list_tool_names(),
-            "fallback_tool": DEFAULT_TOOL_NAME,
-        }
+        return build_langchain_planner_output_contract(
+            registry=registry,
+            fallback_tool=DEFAULT_TOOL_NAME,
+        )
 
     def build_langchain_message_history_payload(
         self,
@@ -245,154 +189,51 @@ class AgentService:
         normalized_role: str,
         normalized_text: str,
     ) -> dict[str, object]:
-        messages: list[dict[str, str]] = []
-        for recent_message in recent_messages or []:
-            normalized_message_role = recent_message.role.strip().lower()
-            normalized_message_content = recent_message.content.strip()
-            if not normalized_message_content:
-                continue
-            messages.append(
-                {
-                    "role": normalized_message_role or "unknown",
-                    "content": normalized_message_content,
-                }
-            )
-
-        messages.append(
-            {
-                "role": "user",
-                "content": normalized_text,
-                "actor_role": normalized_role or "unknown",
-            }
+        return build_langchain_message_history_payload(
+            session_id=session_id,
+            recent_messages=recent_messages,
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
         )
-
-        return {
-            "session_id": session_id,
-            "history_source": "request_messages" if recent_messages else "current_turn_only",
-            "messages": messages,
-        }
 
     def build_langchain_retrieval_context_payload(
         self,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> dict[str, object]:
-        matched_records = registry.preview_knowledge_matches(
-            query_text=normalized_text,
+        return self.retrieval_service.build_context(
+            normalized_text=normalized_text,
+            tool_gateway=registry,
             limit=2,
-        )
-        if not matched_records:
-            return {
-                "rag_enabled": False,
-                "retrieval_source": "knowledge_preview",
-                "retrieved_chunks": [],
-                "citations": [],
-            }
-
-        return {
-            "rag_enabled": True,
-            "retrieval_source": "knowledge_preview",
-            "retrieved_chunks": [
-                {
-                    "document_id": match["document_id"],
-                    "title": match["title"],
-                    "summary": match["summary"],
-                    "matched_terms": match["matched_terms"],
-                }
-                for match in matched_records
-            ],
-            "citations": [
-                {
-                    "document_id": match["document_id"],
-                    "title": match["title"],
-                }
-                for match in matched_records
-            ],
-        }
+        ).to_payload()
 
     def build_langchain_retrieval_context_prompt(
         self,
         retrieval_context: dict[str, object],
     ) -> str:
-        if not retrieval_context.get("rag_enabled"):
-            return "Retrieval context: none."
-
-        retrieved_chunks = retrieval_context.get("retrieved_chunks", [])
-        retrieval_lines = []
-        for retrieved_chunk in retrieved_chunks:
-            retrieval_lines.append(
-                f"{retrieved_chunk['title']}: {retrieved_chunk['summary']}"
-            )
-
-        return "Retrieval context: " + " | ".join(retrieval_lines)
+        return build_langchain_retrieval_context_prompt(retrieval_context)
 
     def build_langchain_guardrail_context_payload(
         self,
         normalized_role: str,
         normalized_text: str,
     ) -> dict[str, object]:
-        lowered_text = normalized_text.lower()
-        input_checks: list[str] = []
-        output_constraints: list[str] = []
-        escalation_required = False
-
-        if any(keyword in lowered_text for keyword in SENSITIVE_ACTION_KEYWORDS):
-            input_checks.append("sensitive_action_requested")
-            if normalized_role not in SENSITIVE_ACTION_ALLOWED_ROLES:
-                output_constraints.append("do_not_initiate_sensitive_actions")
-                output_constraints.append("respond_with_escalation_guidance")
-                escalation_required = True
-
-        ops_action_requested = any(
-            routing_rule.privileged_action and any(keyword in lowered_text for keyword in routing_rule.keywords)
-            for routing_rule in TOOL_ROUTING_RULES
-        )
-        if ops_action_requested:
-            input_checks.append("ops_action_requested")
-            if normalized_role not in ACTION_ENABLED_ROLES:
-                output_constraints.append("do_not_execute_privileged_ops_actions")
-                output_constraints.append("limit_response_to_draft_or_summary")
-                escalation_required = True
-
-        allowed_action_scope = "analysis_only"
-        if normalized_role in ACTION_ENABLED_ROLES:
-            allowed_action_scope = "ops_actions_enabled"
-        if normalized_role in SENSITIVE_ACTION_ALLOWED_ROLES:
-            allowed_action_scope = "sensitive_actions_enabled"
-
-        return {
-            "user_role": normalized_role or "unknown",
-            "input_checks": input_checks,
-            "output_constraints": output_constraints,
-            "allowed_action_scope": allowed_action_scope,
-            "escalation_required": escalation_required,
-        }
+        return self.guardrail_policy.build_decision(
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
+        ).to_payload()
 
     def build_langchain_guardrail_context_prompt(
         self,
         guardrail_context: dict[str, object],
     ) -> str:
-        input_checks = guardrail_context.get("input_checks", [])
-        output_constraints = guardrail_context.get("output_constraints", [])
-        allowed_action_scope = guardrail_context.get("allowed_action_scope", "analysis_only")
-        escalation_required = guardrail_context.get("escalation_required", False)
-
-        checks_summary = ", ".join(input_checks) if input_checks else "none"
-        constraints_summary = ", ".join(output_constraints) if output_constraints else "none"
-        escalation_summary = "required" if escalation_required else "not_required"
-        return (
-            "Guardrail context: "
-            f"scope={allowed_action_scope}; "
-            f"input_checks={checks_summary}; "
-            f"output_constraints={constraints_summary}; "
-            f"escalation={escalation_summary}."
-        )
+        return build_langchain_guardrail_context_prompt(guardrail_context)
 
     def build_langchain_planner_payload(
         self,
         normalized_role: str,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
         session_id: str | None = None,
         recent_messages: list[ChatHistoryMessage] | None = None,
     ) -> dict[str, object]:
@@ -413,105 +254,48 @@ class AgentService:
             normalized_role=normalized_role,
             normalized_text=normalized_text,
         )
-        planner_prompt = self.build_langchain_planner_prompt(
+        return build_langchain_planner_payload(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
-            registry=registry,
+            planner_config=planner_config,
+            tool_catalog=tool_catalog,
+            output_contract=output_contract,
+            message_history=message_history,
             retrieval_context=retrieval_context,
             guardrail_context=guardrail_context,
         )
-        return {
-            "planner_config": {
-                "package_name": planner_config.package_name,
-                "model_provider": planner_config.model_provider,
-                "model_name": planner_config.model_name,
-                "planner_mode": planner_config.planner_mode,
-            },
-            "user_role": normalized_role or "unknown",
-            "message_text": normalized_text,
-            "tool_catalog": tool_catalog,
-            "output_contract": output_contract,
-            "message_history": message_history,
-            "retrieval_context": retrieval_context,
-            "guardrail_context": guardrail_context,
-            "planner_prompt": planner_prompt,
-        }
 
     def init_langchain_chat_model(self) -> object | None:
-        try:
-            from langchain.chat_models import init_chat_model
-        except ImportError:
-            return None
-
-        try:
-            return init_chat_model(
-                DEFAULT_LANGCHAIN_MODEL_NAME,
-                model_provider=DEFAULT_LANGCHAIN_MODEL_PROVIDER,
-            )
-        except Exception:
-            return None
+        return init_langchain_chat_model(
+            model_name=DEFAULT_LANGCHAIN_MODEL_NAME,
+            model_provider=DEFAULT_LANGCHAIN_MODEL_PROVIDER,
+        )
 
     def build_planner_source_evidence(self, planner_source: str) -> str:
-        source_evidence_by_name = {
-            PLANNER_OVERRIDE_SOURCE: "Planner source: override output.",
-            LANGCHAIN_MODEL_SOURCE: "Planner source: LangChain model output.",
-            RULE_FALLBACK_SOURCE: "Planner source: keyword fallback routing.",
-        }
-        return source_evidence_by_name.get(
-            planner_source,
-            "Planner source: unspecified routing path.",
-        )
+        return build_planner_source_evidence(planner_source)
 
     def extract_langchain_planner_output_candidates(
         self,
         planner_output_text: str,
     ) -> list[str]:
-        candidate_chunks = re.split(r"[,;\n|]+", planner_output_text)
-        normalized_candidates: list[str] = []
-        for candidate_chunk in candidate_chunks:
-            normalized_candidate = candidate_chunk.strip().strip("`*[](){}- ")
-            if not normalized_candidate:
-                continue
-            normalized_candidates.append(normalized_candidate)
-
-        return normalized_candidates
+        return extract_langchain_planner_output_candidates(planner_output_text)
 
     def parse_langchain_planner_output(
         self,
         planner_output_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> list[str]:
-        """Parse free-text planner output into registry-recognized tool names."""
         output_contract = self.build_langchain_planner_output_contract(registry)
-        allowed_tool_names = output_contract["allowed_tool_names"]
-        allowed_tool_names_by_lower = {
-            tool_name.lower(): tool_name for tool_name in allowed_tool_names
-        }
-        candidate_tool_names = self.extract_langchain_planner_output_candidates(
-            planner_output_text
+        return parse_langchain_planner_output(
+            planner_output_text=planner_output_text,
+            allowed_tool_names=output_contract["allowed_tool_names"],
         )
-        selected_tool_names: list[str] = []
-        seen_tool_names: set[str] = set()
-
-        for candidate_tool_name in candidate_tool_names:
-            normalized_tool_name = allowed_tool_names_by_lower.get(
-                candidate_tool_name.lower()
-            )
-            if normalized_tool_name is None:
-                continue
-            if normalized_tool_name in seen_tool_names:
-                continue
-
-            seen_tool_names.add(normalized_tool_name)
-            selected_tool_names.append(normalized_tool_name)
-
-        return selected_tool_names
 
     def build_langchain_planner_result(
         self,
         normalized_role: str,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
         session_id: str | None = None,
         recent_messages: list[ChatHistoryMessage] | None = None,
     ) -> PlannerResult:
@@ -589,7 +373,7 @@ class AgentService:
         self,
         selected_tool_names: list[str],
         normalized_role: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> tuple[list[str], list[PlannedToolCall], list[str], list[str]]:
         tool_names: list[str] = []
         planned_tool_calls: list[PlannedToolCall] = []
@@ -633,7 +417,7 @@ class AgentService:
         self,
         normalized_role: str,
         normalized_text: str,
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
         session_id: str | None = None,
         recent_messages: list[ChatHistoryMessage] | None = None,
     ) -> tuple[list[str], list[PlannedToolCall], list[str], list[str], PlannerResult]:
@@ -684,7 +468,7 @@ class AgentService:
         normalized_role: str,
         normalized_text: str,
         planned_tool_calls: list[PlannedToolCall],
-        registry: ToolRegistry,
+        registry: ToolGatewayPort,
     ) -> tuple[list[ToolInvocationResult], list[str]]:
         tool_invocation_results: list[ToolInvocationResult] = []
         evidence: list[str] = []
@@ -715,19 +499,9 @@ class AgentService:
         normalized_role: str,
         normalized_text: str,
     ) -> AgentResponse | None:
-        lowered_text = normalized_text.lower()
-        if not any(keyword in lowered_text for keyword in SENSITIVE_ACTION_KEYWORDS):
-            return None
-
-        if normalized_role in SENSITIVE_ACTION_ALLOWED_ROLES:
-            return None
-
-        return AgentResponse(
-            reply_text=(
-                "I can summarize the request, but I cannot recommend or initiate "
-                "that sensitive action for your current role."
-            ),
-            actions=["Escalate this request to a supervisor or admin."],
+        return self.guardrail_policy.build_sensitive_action_response(
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
         )
 
     def build_agent_response(
@@ -754,16 +528,14 @@ class AgentService:
             planner_result=planner_result,
         )
 
-    def handle_chat(
+    def handle_command(
         self,
-        user_role: str,
-        message_text: str,
-        session_id: str | None = None,
-        recent_messages: list[ChatHistoryMessage] | None = None,
+        command: ChatCommand,
+        registry: ToolGatewayPort | None = None,
     ) -> AgentResponse:
-        normalized_role = user_role.strip().lower()
-        normalized_text = message_text.strip()
-        registry = build_default_registry()
+        normalized_role = command.user_role.strip().lower()
+        normalized_text = command.message_text.strip()
+        active_registry = registry or build_default_registry()
 
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
@@ -779,16 +551,16 @@ class AgentService:
             self.plan_tool_calls_with_langchain(
                 normalized_role=normalized_role,
                 normalized_text=normalized_text,
-                registry=registry,
-                session_id=session_id,
-                recent_messages=recent_messages,
+                registry=active_registry,
+                session_id=command.session_id,
+                recent_messages=command.recent_messages,
             )
         )
         tool_invocation_results, invocation_evidence = self.invoke_planned_tool_calls(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
             planned_tool_calls=planned_tool_calls,
-            registry=registry,
+            registry=active_registry,
         )
         evidence.extend(invocation_evidence)
 
@@ -800,4 +572,20 @@ class AgentService:
             evidence=evidence,
             actions=actions,
             planner_result=planner_result,
+        )
+
+    def handle_chat(
+        self,
+        user_role: str,
+        message_text: str,
+        session_id: str | None = None,
+        recent_messages: list[ChatHistoryMessage] | None = None,
+    ) -> AgentResponse:
+        return self.handle_command(
+            ChatCommand(
+                user_role=user_role,
+                message_text=message_text,
+                session_id=session_id,
+                recent_messages=list(recent_messages or []),
+            )
         )

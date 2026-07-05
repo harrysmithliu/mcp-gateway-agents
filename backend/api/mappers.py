@@ -1,0 +1,81 @@
+from backend.agent.models import AgentResponse, ChatCommand, ChatHistoryMessage
+from backend.api.schemas.chat import ChatRequest, ChatResponse
+from backend.mcp_gateway.models import ToolInvocationResult
+from backend.mcp_gateway.registry import ToolRegistry
+
+
+def build_chat_command(request: ChatRequest) -> ChatCommand:
+    return ChatCommand(
+        user_role=request.user_role,
+        message_text=request.message_text,
+        session_id=request.session_id,
+        recent_messages=[
+            ChatHistoryMessage(
+                role=recent_message.role,
+                content=recent_message.content,
+            )
+            for recent_message in request.recent_messages
+        ],
+    )
+
+
+def build_tool_invocation_result_response(
+    tool_invocation_result: ToolInvocationResult,
+) -> ChatResponse.ToolInvocationResultResponse:
+    return ChatResponse.ToolInvocationResultResponse(
+        tool_name=tool_invocation_result.tool_name,
+        domain=tool_invocation_result.domain,
+        invocation_status=tool_invocation_result.invocation_status,
+        request_payload=tool_invocation_result.request_payload,
+        response_payload=tool_invocation_result.response_payload,
+    )
+
+
+def build_chat_response(
+    agent_response: AgentResponse,
+    registry: ToolRegistry,
+) -> ChatResponse:
+    evidence = list(agent_response.evidence)
+    matched_tool_notes: list[str] = []
+    for tool_name in agent_response.tool_names:
+        tool_definition = registry.get_tool(tool_name)
+        if tool_definition is None:
+            continue
+        matched_tool_notes.append(
+            f"Matched tool [{tool_definition.domain}]: "
+            f"{tool_definition.name} - {tool_definition.description}"
+        )
+
+    evidence.extend(matched_tool_notes)
+    evidence.append("Registered MCP tools: " + ", ".join(registry.list_tool_names()))
+
+    return ChatResponse(
+        reply_text=agent_response.reply_text,
+        tool_names=agent_response.tool_names,
+        planned_tool_calls=[
+            ChatResponse.PlannedToolCallResponse(
+                tool_name=planned_tool_call.tool_name,
+                domain=planned_tool_call.domain,
+                description=planned_tool_call.description,
+            )
+            for planned_tool_call in agent_response.planned_tool_calls
+        ],
+        tool_invocation_results=[
+            build_tool_invocation_result_response(tool_invocation_result)
+            for tool_invocation_result in agent_response.tool_invocation_results
+        ],
+        evidence=evidence,
+        actions=agent_response.actions,
+        planner_result=(
+            ChatResponse.PlannerResultResponse(
+                planner_source=agent_response.planner_result.planner_source,
+                raw_output_text=agent_response.planner_result.raw_output_text,
+                candidate_tool_names=agent_response.planner_result.candidate_tool_names,
+                selected_tool_names=agent_response.planner_result.selected_tool_names,
+                used_fallback=agent_response.planner_result.used_fallback,
+                fallback_reason=agent_response.planner_result.fallback_reason,
+            )
+            if agent_response.planner_result is not None
+            else None
+        ),
+    )

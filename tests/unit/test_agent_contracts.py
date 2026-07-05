@@ -1,0 +1,175 @@
+import sys
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import backend.agent.service as agent_service_module
+from backend.agent.models import AgentResponse, ChatCommand, ChatHistoryMessage
+from backend.agent.service import AgentService
+from backend.api.app import app
+from backend.mcp_gateway.registry import MCPToolDefinition, ToolInvocationResult, build_default_registry
+
+
+def test_handle_command_returns_structured_chat_result() -> None:
+    agent_service = AgentService(
+        planner_override_output="knowledge.search, risk.score_account"
+    )
+    registry = build_default_registry()
+
+    result = agent_service.handle_command(
+        ChatCommand(
+            user_role="analyst",
+            message_text="Search policy guidance and score this borrower account.",
+            session_id="session-r1-001",
+            recent_messages=[
+                ChatHistoryMessage(role="user", content="Previous question"),
+            ],
+        ),
+        registry=registry,
+    )
+
+    assert isinstance(result.reply_text, str)
+    assert result.tool_names == ["knowledge.search", "risk.score_account"]
+    assert [item.tool_name for item in result.planned_tool_calls] == result.tool_names
+    assert [item.tool_name for item in result.tool_invocation_results] == result.tool_names
+    assert result.planner_result is not None
+    assert result.planner_result.used_fallback is False
+
+
+def test_handle_command_uses_passed_registry(monkeypatch) -> None:
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.invocations: list[tuple[str, dict[str, object] | None]] = []
+
+        def get_tool(self, tool_name: str) -> MCPToolDefinition | None:
+            if tool_name != "knowledge.search":
+                return None
+            return MCPToolDefinition(
+                name="knowledge.search",
+                domain="knowledge",
+                description="Fake knowledge tool.",
+            )
+
+        def list_tool_names(self) -> list[str]:
+            return ["knowledge.search"]
+
+        def preview_knowledge_matches(
+            self,
+            query_text: str,
+            limit: int = 3,
+        ) -> list[dict[str, object]]:
+            return [
+                {
+                    "document_id": "fake-doc",
+                    "title": "Fake Knowledge",
+                    "summary": "Fake summary",
+                    "matched_terms": ["policy"],
+                    "match_score": 1,
+                }
+            ][:limit]
+
+        def invoke(
+            self,
+            tool_name: str,
+            request_payload: dict[str, object] | None = None,
+        ) -> ToolInvocationResult:
+            self.invocations.append((tool_name, request_payload))
+            return ToolInvocationResult(
+                tool_name=tool_name,
+                domain="knowledge",
+                invocation_status="completed",
+                request_payload=request_payload or {},
+                response_payload={"source": "fake-registry"},
+            )
+
+    monkeypatch.setattr(
+        agent_service_module,
+        "build_default_registry",
+        lambda: (_ for _ in ()).throw(AssertionError("default registry should not be built")),
+    )
+
+    fake_registry = FakeRegistry()
+    result = AgentService(
+        planner_override_output="knowledge.search"
+    ).handle_command(
+        ChatCommand(
+            user_role="analyst",
+            message_text="Search the policy playbook.",
+        ),
+        registry=fake_registry,
+    )
+
+    assert result.tool_names == ["knowledge.search"]
+    assert fake_registry.invocations == [
+        (
+            "knowledge.search",
+            {
+                "user_role": "analyst",
+                "message_text": "Search the policy playbook.",
+            },
+        )
+    ]
+
+
+def test_handle_chat_facade_builds_chat_command(monkeypatch) -> None:
+    captured_command: dict[str, ChatCommand] = {}
+
+    def capture_handle_command(
+        self: AgentService,
+        command: ChatCommand,
+        registry=None,
+    ) -> AgentResponse:
+        captured_command["command"] = command
+        return AgentResponse(reply_text="captured")
+
+    monkeypatch.setattr(AgentService, "handle_command", capture_handle_command)
+
+    result = AgentService().handle_chat(
+        user_role="Analyst",
+        message_text="Review this account.",
+        session_id="session-r1-002",
+        recent_messages=[
+            ChatHistoryMessage(role="user", content="Earlier question"),
+            ChatHistoryMessage(role="assistant", content="Earlier answer"),
+        ],
+    )
+
+    assert result.reply_text == "captured"
+    assert captured_command["command"] == ChatCommand(
+        user_role="Analyst",
+        message_text="Review this account.",
+        session_id="session-r1-002",
+        recent_messages=[
+            ChatHistoryMessage(role="user", content="Earlier question"),
+            ChatHistoryMessage(role="assistant", content="Earlier answer"),
+        ],
+    )
+
+
+def test_chat_route_preserves_structured_contract_after_command_refactor() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={
+            "user_role": "analyst",
+            "message_text": "Please search policy guidance and review this borrower account.",
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert set(payload) == {
+        "reply_text",
+        "tool_names",
+        "planned_tool_calls",
+        "tool_invocation_results",
+        "evidence",
+        "actions",
+        "planner_result",
+    }
