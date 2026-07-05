@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from backend.agent.service import AgentService
+from backend.agent.service import AgentService, ChatHistoryMessage
 from backend.mcp_gateway.registry import build_default_registry
 
 router = APIRouter(tags=["chat"])
@@ -10,6 +10,13 @@ router = APIRouter(tags=["chat"])
 class ChatRequest(BaseModel):
     user_role: str = Field(..., min_length=1)
     message_text: str = Field(..., min_length=1)
+    session_id: str | None = None
+
+    class RecentMessageRequest(BaseModel):
+        role: str = Field(..., min_length=1)
+        content: str = Field(..., min_length=1)
+
+    recent_messages: list[RecentMessageRequest] = Field(default_factory=list)
 
 
 class KnowledgeSearchRequest(BaseModel):
@@ -41,12 +48,21 @@ class ChatResponse(BaseModel):
         request_payload: dict[str, object]
         response_payload: dict[str, object]
 
+    class PlannerResultResponse(BaseModel):
+        planner_source: str
+        raw_output_text: str | None = None
+        candidate_tool_names: list[str]
+        selected_tool_names: list[str]
+        used_fallback: bool
+        fallback_reason: str | None = None
+
     reply_text: str
     tool_names: list[str]
     planned_tool_calls: list[PlannedToolCallResponse]
     tool_invocation_results: list[ToolInvocationResultResponse]
     evidence: list[str]
     actions: list[str]
+    planner_result: PlannerResultResponse | None = None
 
 
 def _build_tool_invocation_result_response(
@@ -74,6 +90,11 @@ def chat(request: ChatRequest) -> ChatResponse:
     agent_response = agent_service.handle_chat(
         user_role=request.user_role,
         message_text=request.message_text,
+        session_id=request.session_id,
+        recent_messages=[
+            ChatHistoryMessage(role=recent_message.role, content=recent_message.content)
+            for recent_message in request.recent_messages
+        ],
     )
     evidence = list(agent_response.evidence)
     matched_tool_notes: list[str] = []
@@ -113,6 +134,18 @@ def chat(request: ChatRequest) -> ChatResponse:
         ],
         evidence=evidence,
         actions=agent_response.actions,
+        planner_result=(
+            ChatResponse.PlannerResultResponse(
+                planner_source=agent_response.planner_result.planner_source,
+                raw_output_text=agent_response.planner_result.raw_output_text,
+                candidate_tool_names=agent_response.planner_result.candidate_tool_names,
+                selected_tool_names=agent_response.planner_result.selected_tool_names,
+                used_fallback=agent_response.planner_result.used_fallback,
+                fallback_reason=agent_response.planner_result.fallback_reason,
+            )
+            if agent_response.planner_result is not None
+            else None
+        ),
     )
 
 

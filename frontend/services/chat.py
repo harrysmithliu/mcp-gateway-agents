@@ -11,12 +11,28 @@ class ChatApiPlannedToolCall:
 
 
 @dataclass(slots=True)
+class ChatApiHistoryMessage:
+    role: str
+    content: str
+
+
+@dataclass(slots=True)
 class ChatApiToolInvocationResult:
     tool_name: str
     domain: str
     invocation_status: str
     request_payload: dict[str, object] = field(default_factory=dict)
     response_payload: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ChatApiPlannerResult:
+    planner_source: str
+    raw_output_text: str | None = None
+    candidate_tool_names: list[str] = field(default_factory=list)
+    selected_tool_names: list[str] = field(default_factory=list)
+    used_fallback: bool = False
+    fallback_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -27,6 +43,7 @@ class ChatApiResponse:
     tool_invocation_results: list[ChatApiToolInvocationResult] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
+    planner_result: ChatApiPlannerResult | None = None
 
 
 def _post_json(
@@ -64,6 +81,8 @@ def _parse_tool_invocation_result(
 def post_chat_message(
     user_role: str,
     message_text: str,
+    session_id: str | None = None,
+    recent_messages: list[ChatApiHistoryMessage] | None = None,
     api_base_url: str = "http://localhost:8000",
     timeout_seconds: float = 5.0,
 ) -> ChatApiResponse:
@@ -72,6 +91,14 @@ def post_chat_message(
         payload={
             "user_role": user_role,
             "message_text": message_text,
+            "session_id": session_id,
+            "recent_messages": [
+                {
+                    "role": recent_message.role,
+                    "content": recent_message.content,
+                }
+                for recent_message in recent_messages or []
+            ],
         },
         api_base_url=api_base_url,
         timeout_seconds=timeout_seconds,
@@ -100,6 +127,24 @@ def post_chat_message(
         ],
         evidence=response_payload.get("evidence", []),
         actions=response_payload.get("actions", []),
+        planner_result=(
+            ChatApiPlannerResult(
+                planner_source=str(response_payload["planner_result"]["planner_source"]),
+                raw_output_text=response_payload["planner_result"].get("raw_output_text"),
+                candidate_tool_names=list(
+                    response_payload["planner_result"].get("candidate_tool_names", [])
+                ),
+                selected_tool_names=list(
+                    response_payload["planner_result"].get("selected_tool_names", [])
+                ),
+                used_fallback=bool(
+                    response_payload["planner_result"].get("used_fallback", False)
+                ),
+                fallback_reason=response_payload["planner_result"].get("fallback_reason"),
+            )
+            if response_payload.get("planner_result") is not None
+            else None
+        ),
     )
 
 

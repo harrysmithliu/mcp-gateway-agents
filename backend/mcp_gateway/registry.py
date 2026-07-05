@@ -301,6 +301,27 @@ class ToolRegistry:
         request_payload: dict[str, object],
     ) -> ToolInvocationResult:
         query_text = self._extract_query_text(request_payload)
+        top_matches = self.preview_knowledge_matches(query_text=query_text, limit=3)
+
+        response_payload = {
+            "query": query_text,
+            "total_matches": len(top_matches),
+            "matches": top_matches,
+        }
+
+        return ToolInvocationResult(
+            tool_name=tool_definition.name,
+            domain=tool_definition.domain,
+            invocation_status="completed",
+            request_payload=request_payload,
+            response_payload=response_payload,
+        )
+
+    def preview_knowledge_matches(
+        self,
+        query_text: str,
+        limit: int = 3,
+    ) -> list[dict[str, object]]:
         query_terms = self._tokenize_text(query_text)
 
         ranked_matches = []
@@ -320,21 +341,7 @@ class ToolRegistry:
             )
 
         ranked_matches.sort(key=lambda match: match["match_score"], reverse=True)
-        top_matches = ranked_matches[:3]
-
-        response_payload = {
-            "query": query_text,
-            "total_matches": len(top_matches),
-            "matches": top_matches,
-        }
-
-        return ToolInvocationResult(
-            tool_name=tool_definition.name,
-            domain=tool_definition.domain,
-            invocation_status="completed",
-            request_payload=request_payload,
-            response_payload=response_payload,
-        )
+        return ranked_matches[:limit]
 
     def _extract_query_text(self, request_payload: dict[str, object]) -> str:
         raw_query = request_payload.get("query")
