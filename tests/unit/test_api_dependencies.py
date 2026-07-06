@@ -26,6 +26,7 @@ def test_create_app_initializes_application_container() -> None:
     assert created_app.state.container.risk_service is not None
     assert created_app.state.container.trade_service is not None
     assert created_app.state.container.operations_service is not None
+    assert created_app.state.container.storage_bundle is not None
 
 
 def test_chat_route_uses_app_level_container_dependencies() -> None:
@@ -80,6 +81,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         risk_service=original_container.risk_service,
         trade_service=original_container.trade_service,
         operations_service=original_container.operations_service,
+        storage_bundle=original_container.storage_bundle,
     )
 
     try:
@@ -136,6 +138,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
         risk_service=original_container.risk_service,
         trade_service=original_container.trade_service,
         operations_service=original_container.operations_service,
+        storage_bundle=original_container.storage_bundle,
     )
 
     try:
