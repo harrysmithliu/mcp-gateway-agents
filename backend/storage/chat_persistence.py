@@ -36,6 +36,7 @@ class ChatPersistenceExchange:
     audit_events_persistence_error: str | None = None
     operational_records_persisted: bool = False
     operational_records_persistence_error: str | None = None
+    write_order: list[str] = field(default_factory=list)
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
 
 
@@ -46,10 +47,16 @@ class ChatPersistenceResult:
     session_persisted: bool = False
     session_persistence_error: str | None = None
     user_message_persisted: bool = False
+    user_message_persistence_error: str | None = None
     assistant_message_persisted: bool = False
+    assistant_message_persistence_error: str | None = None
     tool_logs_persisted: bool = False
+    tool_logs_persistence_error: str | None = None
     audit_events_persisted: bool = False
+    audit_events_persistence_error: str | None = None
     operational_records_persisted: bool = False
+    operational_records_persistence_error: str | None = None
+    write_order: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -57,6 +64,13 @@ class ChatPersistenceCoordinator:
     """Single entrypoint for future chat persistence orchestration."""
 
     storage_bundle: StorageBundle
+
+    def record_stage(
+        self,
+        exchange: ChatPersistenceExchange,
+        stage_name: str,
+    ) -> None:
+        exchange.write_order.append(stage_name)
 
     def build_session_id(
         self,
@@ -82,6 +96,7 @@ class ChatPersistenceCoordinator:
         self,
         exchange: ChatPersistenceExchange,
     ) -> None:
+        self.record_stage(exchange, "ensure_chat_session")
         if exchange.effective_session_id is None:
             return
 
@@ -102,6 +117,7 @@ class ChatPersistenceCoordinator:
         self,
         exchange: ChatPersistenceExchange,
     ) -> None:
+        self.record_stage(exchange, "append_user_message")
         if exchange.effective_session_id is None:
             exchange.user_message_persistence_error = "chat_session_missing"
             return
@@ -130,6 +146,7 @@ class ChatPersistenceCoordinator:
         exchange: ChatPersistenceExchange,
         agent_response: AgentResponse,
     ) -> None:
+        self.record_stage(exchange, "append_assistant_message")
         if exchange.effective_session_id is None:
             exchange.assistant_message_persistence_error = "chat_session_missing"
             return
@@ -160,8 +177,12 @@ class ChatPersistenceCoordinator:
         exchange: ChatPersistenceExchange,
         agent_response: AgentResponse,
     ) -> None:
+        self.record_stage(exchange, "persist_tool_invocation_logs")
         if not agent_response.tool_invocation_results:
             exchange.tool_logs_persisted = True
+            return
+        if not exchange.user_message_persisted:
+            exchange.tool_logs_persistence_error = "tool_logs_skipped_missing_user_message"
             return
 
         try:
@@ -191,6 +212,11 @@ class ChatPersistenceCoordinator:
         exchange: ChatPersistenceExchange,
         agent_response: AgentResponse,
     ) -> None:
+        self.record_stage(exchange, "persist_audit_events")
+        if not exchange.session_persisted:
+            exchange.audit_events_persistence_error = "audit_events_skipped_missing_session"
+            return
+
         try:
             self.storage_bundle.audit_event_repository.create_audit_event(
                 AuditEventRecord(
@@ -211,6 +237,21 @@ class ChatPersistenceCoordinator:
                             if agent_response.planner_result is not None
                             else None
                         ),
+                        "persistence_status": {
+                            "session_persisted": exchange.session_persisted,
+                            "user_message_persisted": exchange.user_message_persisted,
+                            "assistant_message_persisted": exchange.assistant_message_persisted,
+                            "tool_logs_persisted": exchange.tool_logs_persisted,
+                            "operational_records_persisted": exchange.operational_records_persisted,
+                        },
+                        "persistence_errors": {
+                            "session": exchange.session_persistence_error,
+                            "user_message": exchange.user_message_persistence_error,
+                            "assistant_message": exchange.assistant_message_persistence_error,
+                            "tool_logs": exchange.tool_logs_persistence_error,
+                            "operational_records": exchange.operational_records_persistence_error,
+                        },
+                        "write_order": list(exchange.write_order),
                     },
                 )
             )
@@ -224,6 +265,7 @@ class ChatPersistenceCoordinator:
         exchange: ChatPersistenceExchange,
         agent_response: AgentResponse,
     ) -> None:
+        self.record_stage(exchange, "persist_operational_records")
         ops_results = [
             tool_invocation_result
             for tool_invocation_result in agent_response.tool_invocation_results
@@ -231,6 +273,11 @@ class ChatPersistenceCoordinator:
         ]
         if not ops_results:
             exchange.operational_records_persisted = True
+            return
+        if not exchange.assistant_message_persisted:
+            exchange.operational_records_persistence_error = (
+                "operational_records_skipped_missing_assistant_message"
+            )
             return
 
         try:
@@ -298,14 +345,20 @@ class ChatPersistenceCoordinator:
     ) -> ChatPersistenceResult:
         self.append_assistant_message(exchange, agent_response)
         self.persist_tool_invocation_logs(exchange, agent_response)
-        self.persist_audit_events(exchange, agent_response)
         self.persist_operational_records(exchange, agent_response)
+        self.persist_audit_events(exchange, agent_response)
         return ChatPersistenceResult(
             session_persisted=exchange.session_persisted,
             session_persistence_error=exchange.session_persistence_error,
             user_message_persisted=exchange.user_message_persisted,
+            user_message_persistence_error=exchange.user_message_persistence_error,
             assistant_message_persisted=exchange.assistant_message_persisted,
+            assistant_message_persistence_error=exchange.assistant_message_persistence_error,
             tool_logs_persisted=exchange.tool_logs_persisted,
+            tool_logs_persistence_error=exchange.tool_logs_persistence_error,
             audit_events_persisted=exchange.audit_events_persisted,
+            audit_events_persistence_error=exchange.audit_events_persistence_error,
             operational_records_persisted=exchange.operational_records_persisted,
+            operational_records_persistence_error=exchange.operational_records_persistence_error,
+            write_order=list(exchange.write_order),
         )

@@ -217,6 +217,10 @@ def test_chat_persistence_coordinator_starts_exchange_from_chat_command() -> Non
     assert exchange.effective_session_id == "session-round-1"
     assert exchange.session_persisted is True
     assert exchange.user_message_persisted is True
+    assert exchange.write_order == [
+        "ensure_chat_session",
+        "append_user_message",
+    ]
     assert exchange.recent_messages == [
         ChatHistoryMessage(role="user", content="Earlier question")
     ]
@@ -258,6 +262,14 @@ def test_chat_persistence_coordinator_finishes_exchange_with_noop_result() -> No
         tool_logs_persisted=True,
         audit_events_persisted=True,
         operational_records_persisted=True,
+        write_order=[
+            "ensure_chat_session",
+            "append_user_message",
+            "append_assistant_message",
+            "persist_tool_invocation_logs",
+            "persist_operational_records",
+            "persist_audit_events",
+        ],
     )
     assert len(storage_bundle.chat_message_repository.records) == 2
     assert storage_bundle.chat_message_repository.records[1].sender_type == "assistant"
@@ -312,9 +324,20 @@ def test_chat_persistence_coordinator_keeps_main_flow_alive_when_write_fails() -
     assert result == ChatPersistenceResult(
         session_persisted=False,
         session_persistence_error="chat_session_write_failed",
+        user_message_persistence_error="chat_session_not_persisted",
+        assistant_message_persistence_error="chat_session_not_persisted",
         tool_logs_persisted=True,
-        audit_events_persisted=True,
+        audit_events_persisted=False,
+        audit_events_persistence_error="audit_events_skipped_missing_session",
         operational_records_persisted=True,
+        write_order=[
+            "ensure_chat_session",
+            "append_user_message",
+            "append_assistant_message",
+            "persist_tool_invocation_logs",
+            "persist_operational_records",
+            "persist_audit_events",
+        ],
     )
 
 
@@ -344,10 +367,20 @@ def test_chat_persistence_coordinator_tolerates_message_write_failures() -> None
     assert result == ChatPersistenceResult(
         session_persisted=True,
         user_message_persisted=False,
+        user_message_persistence_error="user_message_write_failed",
         assistant_message_persisted=False,
+        assistant_message_persistence_error="assistant_message_write_failed",
         tool_logs_persisted=True,
         audit_events_persisted=True,
         operational_records_persisted=True,
+        write_order=[
+            "ensure_chat_session",
+            "append_user_message",
+            "append_assistant_message",
+            "persist_tool_invocation_logs",
+            "persist_operational_records",
+            "persist_audit_events",
+        ],
     )
 
 
@@ -390,6 +423,14 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
 
     assert result.tool_logs_persisted is True
     assert result.audit_events_persisted is True
+    assert result.write_order == [
+        "ensure_chat_session",
+        "append_user_message",
+        "append_assistant_message",
+        "persist_tool_invocation_logs",
+        "persist_operational_records",
+        "persist_audit_events",
+    ]
     assert len(storage_bundle.tool_call_log_repository.records) == 2
     assert {
         record.tool_name for record in storage_bundle.tool_call_log_repository.records
@@ -403,6 +444,7 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
     assert audit_event.event_type == "chat_exchange_completed"
     assert audit_event.event_payload["session_id"] == "session-round-4"
     assert audit_event.event_payload["tool_invocation_count"] == 2
+    assert audit_event.event_payload["write_order"] == result.write_order
     assert storage_bundle.risk_alert_repository.records == []
 
 
@@ -577,3 +619,84 @@ def test_chat_persistence_coordinator_tolerates_operational_record_failures() ->
         == "operational_records_write_failed"
     )
     assert result.operational_records_persisted is False
+
+
+def test_chat_persistence_coordinator_skips_tool_logs_without_user_message_anchor() -> None:
+    coordinator = ChatPersistenceCoordinator(storage_bundle=MessageFailingStorageBundle())
+    exchange = coordinator.start_exchange(
+        command=ChatCommand(
+            user_role="analyst",
+            message_text="Search the policy playbook.",
+            session_id="session-round-6-tool-skip",
+        ),
+        normalized_role="analyst",
+        normalized_text="Search the policy playbook.",
+    )
+
+    result = coordinator.finish_exchange(
+        exchange=exchange,
+        agent_response=AgentResponse(
+            reply_text="placeholder",
+            tool_names=["knowledge.search"],
+            tool_invocation_results=[
+                ToolInvocationResult(
+                    tool_name="knowledge.search",
+                    domain="knowledge",
+                    invocation_status="completed",
+                    request_payload={"query": "policy"},
+                    response_payload={"total_matches": 1},
+                )
+            ],
+        ),
+    )
+
+    assert result.tool_logs_persisted is False
+    assert (
+        result.tool_logs_persistence_error
+        == "tool_logs_skipped_missing_user_message"
+    )
+    assert result.audit_events_persisted is True
+
+
+def test_chat_persistence_coordinator_skips_operational_record_without_assistant_message() -> None:
+    coordinator = ChatPersistenceCoordinator(storage_bundle=MessageFailingStorageBundle())
+    exchange = coordinator.start_exchange(
+        command=ChatCommand(
+            user_role="analyst",
+            message_text="Escalate this suspicious risk review.",
+            session_id="session-round-6-ops-skip",
+        ),
+        normalized_role="analyst",
+        normalized_text="Escalate this suspicious risk review.",
+    )
+
+    result = coordinator.finish_exchange(
+        exchange=exchange,
+        agent_response=AgentResponse(
+            reply_text="placeholder",
+            tool_names=["ops.create_alert_or_action"],
+            tool_invocation_results=[
+                ToolInvocationResult(
+                    tool_name="ops.create_alert_or_action",
+                    domain="operations",
+                    invocation_status="completed",
+                    request_payload={"query": "escalate suspicious risk review"},
+                    response_payload={
+                        "recommended_action": {
+                            "template_id": "ops-alert-escalation",
+                            "action_type": "alert",
+                            "severity": "high",
+                            "summary_template": "Escalate suspicious trading activity.",
+                        }
+                    },
+                )
+            ],
+        ),
+    )
+
+    assert result.operational_records_persisted is False
+    assert (
+        result.operational_records_persistence_error
+        == "operational_records_skipped_missing_assistant_message"
+    )
+    assert result.audit_events_persisted is True
