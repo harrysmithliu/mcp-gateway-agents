@@ -25,6 +25,7 @@ def test_chat_route_returns_structured_response() -> None:
 
     payload = response.json()
     assert set(payload) == {
+        "session_id",
         "reply_text",
         "tool_names",
         "planned_tool_calls",
@@ -33,6 +34,7 @@ def test_chat_route_returns_structured_response() -> None:
         "actions",
         "planner_result",
     }
+    assert isinstance(payload["session_id"], str)
     assert isinstance(payload["reply_text"], str)
     assert isinstance(payload["tool_names"], list)
     assert isinstance(payload["planned_tool_calls"], list)
@@ -81,6 +83,7 @@ def test_chat_route_returns_multiple_tool_invocation_results() -> None:
     assert response.status_code == 200
 
     payload = response.json()
+    assert payload["session_id"] is not None
     expected_tool_names = [
         "knowledge.search",
         "risk.score_account",

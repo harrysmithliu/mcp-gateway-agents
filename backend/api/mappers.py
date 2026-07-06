@@ -50,6 +50,7 @@ def build_chat_response(
     evidence.append("Registered MCP tools: " + ", ".join(registry.list_tool_names()))
 
     return ChatResponse(
+        session_id=agent_response.session_id,
         reply_text=agent_response.reply_text,
         tool_names=agent_response.tool_names,
         planned_tool_calls=[

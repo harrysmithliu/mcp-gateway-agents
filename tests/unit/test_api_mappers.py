@@ -70,6 +70,7 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
     registry = build_default_registry()
     agent_response = AgentResponse(
         reply_text="placeholder",
+        session_id="session-r2-001",
         tool_names=["knowledge.search"],
         planned_tool_calls=[
             PlannedToolCall(
@@ -101,6 +102,7 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
 
     response = build_chat_response(agent_response, registry)
 
+    assert response.session_id == "session-r2-001"
     assert response.reply_text == "placeholder"
     assert response.tool_names == ["knowledge.search"]
     assert response.evidence[0] == "initial evidence"

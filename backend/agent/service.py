@@ -35,6 +35,7 @@ from backend.agent.ports import ToolGatewayPort
 from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
 from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
 from backend.retrieval.service import RetrievalService
+from backend.storage.chat_persistence import ChatPersistenceCoordinator
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,7 @@ class AgentService:
     planner_override_output: str | None = None
     retrieval_service: RetrievalService = field(default_factory=RetrievalService)
     guardrail_policy: GuardrailPolicy = field(default_factory=GuardrailPolicy)
+    chat_persistence_coordinator: ChatPersistenceCoordinator | None = None
 
     def describe(self) -> str:
         return (
@@ -507,6 +509,7 @@ class AgentService:
     def build_agent_response(
         self,
         normalized_role: str,
+        session_id: str | None,
         tool_names: list[str],
         planned_tool_calls: list[PlannedToolCall],
         tool_invocation_results: list[ToolInvocationResult],
@@ -520,6 +523,7 @@ class AgentService:
                 "role. The API layer can route this into LangChain and registry-backed MCP "
                 "execution next."
             ),
+            session_id=session_id,
             tool_names=tool_names,
             planned_tool_calls=planned_tool_calls,
             tool_invocation_results=tool_invocation_results,
@@ -540,11 +544,27 @@ class AgentService:
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
 
+        persistence_exchange = None
+        active_session_id = command.session_id
+        if self.chat_persistence_coordinator is not None:
+            persistence_exchange = self.chat_persistence_coordinator.start_exchange(
+                command=command,
+                normalized_role=normalized_role,
+                normalized_text=normalized_text,
+            )
+            active_session_id = persistence_exchange.effective_session_id
+
         sensitive_action_response = self.build_sensitive_action_response(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
         )
         if sensitive_action_response is not None:
+            sensitive_action_response.session_id = active_session_id
+            if persistence_exchange is not None:
+                self.chat_persistence_coordinator.finish_exchange(
+                    exchange=persistence_exchange,
+                    agent_response=sensitive_action_response,
+                )
             return sensitive_action_response
 
         tool_names, planned_tool_calls, evidence, actions, planner_result = (
@@ -552,7 +572,7 @@ class AgentService:
                 normalized_role=normalized_role,
                 normalized_text=normalized_text,
                 registry=active_registry,
-                session_id=command.session_id,
+                session_id=active_session_id,
                 recent_messages=command.recent_messages,
             )
         )
@@ -564,8 +584,9 @@ class AgentService:
         )
         evidence.extend(invocation_evidence)
 
-        return self.build_agent_response(
+        agent_response = self.build_agent_response(
             normalized_role=normalized_role,
+            session_id=active_session_id,
             tool_names=tool_names,
             planned_tool_calls=planned_tool_calls,
             tool_invocation_results=tool_invocation_results,
@@ -573,6 +594,12 @@ class AgentService:
             actions=actions,
             planner_result=planner_result,
         )
+        if persistence_exchange is not None:
+            self.chat_persistence_coordinator.finish_exchange(
+                exchange=persistence_exchange,
+                agent_response=agent_response,
+            )
+        return agent_response
 
     def handle_chat(
         self,

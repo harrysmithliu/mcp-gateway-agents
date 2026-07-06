@@ -35,15 +35,16 @@ def test_chat_session_repository_builds_insert_statement() -> None:
     statement = repository.create_session(
         ChatSessionRecord(
             session_id="session-1",
-            user_id=101,
+            user_id=None,
             session_title="Risk review",
         )
     )
 
     assert "INSERT INTO convo.chat_sessions" in statement.sql
+    assert "ON CONFLICT (session_id) DO NOTHING" in statement.sql
     assert statement.params == {
         "session_id": "session-1",
-        "user_id": 101,
+        "user_id": None,
         "session_title": "Risk review",
     }
     assert executor.statements == [statement]

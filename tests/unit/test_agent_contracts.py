@@ -12,6 +12,7 @@ from backend.agent.models import AgentResponse, ChatCommand, ChatHistoryMessage
 from backend.agent.service import AgentService
 from backend.api.app import app
 from backend.mcp_gateway.registry import MCPToolDefinition, ToolInvocationResult, build_default_registry
+from backend.storage.chat_persistence import ChatPersistenceExchange
 
 
 def test_handle_command_returns_structured_chat_result() -> None:
@@ -33,6 +34,7 @@ def test_handle_command_returns_structured_chat_result() -> None:
     )
 
     assert isinstance(result.reply_text, str)
+    assert result.session_id == "session-r1-001"
     assert result.tool_names == ["knowledge.search", "risk.score_account"]
     assert [item.tool_name for item in result.planned_tool_calls] == result.tool_names
     assert [item.tool_name for item in result.tool_invocation_results] == result.tool_names
@@ -104,6 +106,7 @@ def test_handle_command_uses_passed_registry(monkeypatch) -> None:
     )
 
     assert result.tool_names == ["knowledge.search"]
+    assert result.session_id is None
     assert fake_registry.invocations == [
         (
             "knowledge.search",
@@ -165,6 +168,7 @@ def test_chat_route_preserves_structured_contract_after_command_refactor() -> No
 
     payload = response.json()
     assert set(payload) == {
+        "session_id",
         "reply_text",
         "tool_names",
         "planned_tool_calls",
@@ -173,3 +177,64 @@ def test_chat_route_preserves_structured_contract_after_command_refactor() -> No
         "actions",
         "planner_result",
     }
+
+
+def test_handle_command_routes_through_chat_persistence_coordinator() -> None:
+    class FakeCoordinator:
+        def __init__(self) -> None:
+            self.started: list[ChatPersistenceExchange] = []
+            self.finished: list[tuple[ChatPersistenceExchange, AgentResponse]] = []
+
+        def start_exchange(
+            self,
+            command: ChatCommand,
+            normalized_role: str,
+            normalized_text: str,
+        ) -> ChatPersistenceExchange:
+            exchange = ChatPersistenceExchange(
+                user_role=command.user_role,
+                normalized_role=normalized_role,
+                message_text=command.message_text,
+                normalized_text=normalized_text,
+                requested_session_id=command.session_id,
+                effective_session_id=command.session_id,
+                recent_messages=list(command.recent_messages),
+            )
+            self.started.append(exchange)
+            return exchange
+
+        def finish_exchange(
+            self,
+            exchange: ChatPersistenceExchange,
+            agent_response: AgentResponse,
+        ) -> object:
+            self.finished.append((exchange, agent_response))
+            return object()
+
+    coordinator = FakeCoordinator()
+    agent_service = AgentService(
+        planner_override_output="knowledge.search",
+        chat_persistence_coordinator=coordinator,
+    )
+    registry = build_default_registry()
+
+    result = agent_service.handle_command(
+        ChatCommand(
+            user_role="Analyst",
+            message_text="Search the policy playbook.",
+            session_id="session-round-1",
+            recent_messages=[
+                ChatHistoryMessage(role="user", content="Earlier question"),
+            ],
+        ),
+        registry=registry,
+    )
+
+    assert len(coordinator.started) == 1
+    assert coordinator.started[0].normalized_role == "analyst"
+    assert coordinator.started[0].normalized_text == "Search the policy playbook."
+    assert coordinator.started[0].requested_session_id == "session-round-1"
+    assert len(coordinator.finished) == 1
+    assert coordinator.finished[0][0] is coordinator.started[0]
+    assert coordinator.finished[0][1] is result
+    assert result.session_id == "session-round-1"

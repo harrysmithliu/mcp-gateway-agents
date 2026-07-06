@@ -14,7 +14,8 @@ class ChatSessionRepository:
             sql=(
                 "INSERT INTO convo.chat_sessions "
                 "(session_id, user_id, session_title) "
-                "VALUES (%(session_id)s, %(user_id)s, %(session_title)s)"
+                "VALUES (%(session_id)s, %(user_id)s, %(session_title)s) "
+                "ON CONFLICT (session_id) DO NOTHING"
             ),
             params={
                 "session_id": record.session_id,

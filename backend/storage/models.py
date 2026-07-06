@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True, slots=True)
 class ChatSessionRecord:
     session_id: str
-    user_id: int
+    user_id: int | None
     session_title: str
 
 

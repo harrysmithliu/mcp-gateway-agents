@@ -34,6 +34,7 @@ class ChatResponse(BaseModel):
         used_fallback: bool
         fallback_reason: str | None = None
 
+    session_id: str | None = None
     reply_text: str
     tool_names: list[str]
     planned_tool_calls: list[PlannedToolCallResponse]

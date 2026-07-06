@@ -47,6 +47,7 @@ class ChatResult:
     """Structured placeholder response for the future chat workflow."""
 
     reply_text: str
+    session_id: str | None = None
     tool_names: list[str] = field(default_factory=list)
     planned_tool_calls: list[PlannedToolCall] = field(default_factory=list)
     tool_invocation_results: list[ToolInvocationResult] = field(default_factory=list)
