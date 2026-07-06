@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from backend.services.common import tokenize_text
+from backend.services.demo_data import load_demo_dataset
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,40 +17,19 @@ class TradeMetricsSnapshot:
     keywords: tuple[str, ...]
 
 
-DEFAULT_TRADE_METRICS_SNAPSHOTS = (
+DEFAULT_TRADE_METRICS_SNAPSHOTS = tuple(
     TradeMetricsSnapshot(
-        snapshot_id="trade-snapshot-alpha",
-        account_label="Alpha Market Maker",
-        wallet_id="wallet-alpha-01",
-        order_count_24h=184,
-        filled_notional_usd_24h=2450000,
-        net_exposure_usd=320000,
-        concentration_ratio=0.41,
-        anomaly_flags=("exposure_shift",),
-        keywords=("trade", "wallet", "volume", "market", "maker", "alpha"),
-    ),
-    TradeMetricsSnapshot(
-        snapshot_id="trade-snapshot-beta",
-        account_label="Beta Treasury Wallet",
-        wallet_id="wallet-beta-17",
-        order_count_24h=42,
-        filled_notional_usd_24h=780000,
-        net_exposure_usd=110000,
-        concentration_ratio=0.28,
-        anomaly_flags=("none",),
-        keywords=("trade", "wallet", "treasury", "beta", "exposure"),
-    ),
-    TradeMetricsSnapshot(
-        snapshot_id="trade-snapshot-gamma",
-        account_label="Gamma High-Volume Desk",
-        wallet_id="wallet-gamma-88",
-        order_count_24h=267,
-        filled_notional_usd_24h=3910000,
-        net_exposure_usd=540000,
-        concentration_ratio=0.57,
-        anomaly_flags=("volume_spike", "concentration_risk"),
-        keywords=("trade", "wallet", "order", "volume", "gamma", "desk"),
-    ),
+        snapshot_id=str(record["snapshot_id"]),
+        account_label=str(record["account_label"]),
+        wallet_id=str(record["wallet_id"]),
+        order_count_24h=int(record["order_count_24h"]),
+        filled_notional_usd_24h=int(record["filled_notional_usd_24h"]),
+        net_exposure_usd=int(record["net_exposure_usd"]),
+        concentration_ratio=float(record["concentration_ratio"]),
+        anomaly_flags=tuple(str(flag) for flag in record["anomaly_flags"]),
+        keywords=tuple(str(keyword) for keyword in record["keywords"]),
+    )
+    for record in load_demo_dataset("trade")
 )
 
 

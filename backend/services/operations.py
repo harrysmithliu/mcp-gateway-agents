@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from backend.services.common import tokenize_text
+from backend.services.demo_data import load_demo_dataset
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,34 +15,17 @@ class OpsActionTemplate:
     keywords: tuple[str, ...]
 
 
-DEFAULT_OPS_ACTION_TEMPLATES = (
+DEFAULT_OPS_ACTION_TEMPLATES = tuple(
     OpsActionTemplate(
-        template_id="ops-alert-escalation",
-        action_type="alert",
-        severity="high",
-        owner_team="risk_ops",
-        summary_template="Escalate suspicious trading activity with exposure context and supporting evidence.",
-        required_fields=("account_id", "exposure_context", "evidence_links"),
-        keywords=("alert", "escalate", "suspicious", "risk", "review"),
-    ),
-    OpsActionTemplate(
-        template_id="ops-review-followup",
-        action_type="review",
-        severity="medium",
-        owner_team="trade_ops",
-        summary_template="Prepare a manual review packet for abnormal trade metrics and concentration changes.",
-        required_fields=("wallet_id", "metric_snapshot", "review_notes"),
-        keywords=("review", "trade", "wallet", "metrics", "follow-up"),
-    ),
-    OpsActionTemplate(
-        template_id="ops-action-monitor",
-        action_type="action",
-        severity="low",
-        owner_team="operations_control",
-        summary_template="Open a monitoring action to track repeated but lower-severity anomalies.",
-        required_fields=("entity_id", "monitoring_window", "owner"),
-        keywords=("action", "monitor", "operations", "owner", "triage"),
-    ),
+        template_id=str(record["template_id"]),
+        action_type=str(record["action_type"]),
+        severity=str(record["severity"]),
+        owner_team=str(record["owner_team"]),
+        summary_template=str(record["summary_template"]),
+        required_fields=tuple(str(field_name) for field_name in record["required_fields"]),
+        keywords=tuple(str(keyword) for keyword in record["keywords"]),
+    )
+    for record in load_demo_dataset("operations")
 )
 
 

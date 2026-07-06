@@ -1,0 +1,26 @@
+[
+  {
+    "document_id": "playbook-trade-risk-review",
+    "title": "Trade Risk Review Playbook",
+    "summary": "Review wallet exposure, abnormal fills, and concentration changes before raising an alert.",
+    "keywords": ["trade", "risk", "review", "wallet", "alert", "exposure"]
+  },
+  {
+    "document_id": "runbook-ops-alert-triage",
+    "title": "Operations Alert Triage Runbook",
+    "summary": "Create follow-up actions only after confirming alert severity, owner, and evidence links.",
+    "keywords": ["operations", "alert", "action", "triage", "owner", "evidence"]
+  },
+  {
+    "document_id": "guide-knowledge-evidence",
+    "title": "Knowledge Evidence Response Guide",
+    "summary": "Return short evidence snippets with titles and matched terms so analysts can verify the reasoning path.",
+    "keywords": ["knowledge", "search", "evidence", "analyst", "response", "matched"]
+  },
+  {
+    "document_id": "policy-risk-escalation",
+    "title": "Risk Escalation Policy",
+    "summary": "Escalate high-risk trade reviews when exposure and suspicious activity indicators appear together.",
+    "keywords": ["risk", "escalate", "trade", "exposure", "suspicious", "activity"]
+  }
+]

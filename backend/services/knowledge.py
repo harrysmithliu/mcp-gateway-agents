@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from backend.services.demo_data import load_demo_dataset
 from backend.services.common import tokenize_text
 
 
@@ -11,31 +12,14 @@ class KnowledgeRecord:
     keywords: tuple[str, ...]
 
 
-DEFAULT_KNOWLEDGE_RECORDS = (
+DEFAULT_KNOWLEDGE_RECORDS = tuple(
     KnowledgeRecord(
-        document_id="playbook-trade-risk-review",
-        title="Trade Risk Review Playbook",
-        summary="Review wallet exposure, abnormal fills, and concentration changes before raising an alert.",
-        keywords=("trade", "risk", "review", "wallet", "alert", "exposure"),
-    ),
-    KnowledgeRecord(
-        document_id="runbook-ops-alert-triage",
-        title="Operations Alert Triage Runbook",
-        summary="Create follow-up actions only after confirming alert severity, owner, and evidence links.",
-        keywords=("operations", "alert", "action", "triage", "owner", "evidence"),
-    ),
-    KnowledgeRecord(
-        document_id="guide-knowledge-evidence",
-        title="Knowledge Evidence Response Guide",
-        summary="Return short evidence snippets with titles and matched terms so analysts can verify the reasoning path.",
-        keywords=("knowledge", "search", "evidence", "analyst", "response", "matched"),
-    ),
-    KnowledgeRecord(
-        document_id="policy-risk-escalation",
-        title="Risk Escalation Policy",
-        summary="Escalate high-risk trade reviews when exposure and suspicious activity indicators appear together.",
-        keywords=("risk", "escalate", "trade", "exposure", "suspicious", "activity"),
-    ),
+        document_id=str(record["document_id"]),
+        title=str(record["title"]),
+        summary=str(record["summary"]),
+        keywords=tuple(str(keyword) for keyword in record["keywords"]),
+    )
+    for record in load_demo_dataset("knowledge")
 )
 
 

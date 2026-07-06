@@ -46,8 +46,29 @@ class DatabaseClient:
         finally:
             connection.close()
 
+    def _normalize_param_value(
+        self,
+        value: object,
+        psycopg: Any,
+    ) -> object:
+        if isinstance(value, (dict, list)):
+            return psycopg.types.json.Jsonb(value)
+        return value
+
+    def _normalize_statement_params(
+        self,
+        statement: SQLStatement,
+        psycopg: Any,
+    ) -> dict[str, object]:
+        return {
+            key: self._normalize_param_value(value, psycopg)
+            for key, value in statement.params.items()
+        }
+
     def execute(self, statement: SQLStatement) -> None:
+        psycopg = self._import_psycopg()
+        normalized_params = self._normalize_statement_params(statement, psycopg)
         with self.connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(statement.sql, statement.params)
+                cursor.execute(statement.sql, normalized_params)
             connection.commit()

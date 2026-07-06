@@ -9,6 +9,7 @@ from backend.storage.models import (
     RiskAlertRecord,
     ToolCallLogRecord,
 )
+from backend.storage.redis_chat_context import RedisChatContextStore
 from backend.storage.runtime import StorageBundle
 
 
@@ -36,6 +37,8 @@ class ChatPersistenceExchange:
     audit_events_persistence_error: str | None = None
     operational_records_persisted: bool = False
     operational_records_persistence_error: str | None = None
+    redis_context_persisted: bool = False
+    redis_context_persistence_error: str | None = None
     write_order: list[str] = field(default_factory=list)
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
 
@@ -56,6 +59,8 @@ class ChatPersistenceResult:
     audit_events_persistence_error: str | None = None
     operational_records_persisted: bool = False
     operational_records_persistence_error: str | None = None
+    redis_context_persisted: bool = False
+    redis_context_persistence_error: str | None = None
     write_order: list[str] = field(default_factory=list)
 
 
@@ -64,6 +69,7 @@ class ChatPersistenceCoordinator:
     """Single entrypoint for future chat persistence orchestration."""
 
     storage_bundle: StorageBundle
+    redis_chat_context_store: RedisChatContextStore | None = None
 
     def record_stage(
         self,
@@ -120,9 +126,19 @@ class ChatPersistenceCoordinator:
         self.record_stage(exchange, "append_user_message")
         if exchange.effective_session_id is None:
             exchange.user_message_persistence_error = "chat_session_missing"
+            self.persist_redis_context_message(
+                exchange=exchange,
+                role="user",
+                content=exchange.message_text,
+            )
             return
         if not exchange.session_persisted:
             exchange.user_message_persistence_error = "chat_session_not_persisted"
+            self.persist_redis_context_message(
+                exchange=exchange,
+                role="user",
+                content=exchange.message_text,
+            )
             return
 
         message_id = self.build_message_id()
@@ -140,6 +156,11 @@ class ChatPersistenceCoordinator:
         except Exception:
             exchange.user_message_persisted = False
             exchange.user_message_persistence_error = "user_message_write_failed"
+        self.persist_redis_context_message(
+            exchange=exchange,
+            role="user",
+            content=exchange.message_text,
+        )
 
     def append_assistant_message(
         self,
@@ -149,9 +170,19 @@ class ChatPersistenceCoordinator:
         self.record_stage(exchange, "append_assistant_message")
         if exchange.effective_session_id is None:
             exchange.assistant_message_persistence_error = "chat_session_missing"
+            self.persist_redis_context_message(
+                exchange=exchange,
+                role="assistant",
+                content=agent_response.reply_text,
+            )
             return
         if not exchange.session_persisted:
             exchange.assistant_message_persistence_error = "chat_session_not_persisted"
+            self.persist_redis_context_message(
+                exchange=exchange,
+                role="assistant",
+                content=agent_response.reply_text,
+            )
             return
 
         message_id = self.build_message_id()
@@ -171,6 +202,32 @@ class ChatPersistenceCoordinator:
             exchange.assistant_message_persistence_error = (
                 "assistant_message_write_failed"
             )
+        self.persist_redis_context_message(
+            exchange=exchange,
+            role="assistant",
+            content=agent_response.reply_text,
+        )
+
+    def persist_redis_context_message(
+        self,
+        exchange: ChatPersistenceExchange,
+        role: str,
+        content: str,
+    ) -> None:
+        self.record_stage(exchange, f"persist_redis_{role}_message")
+        if self.redis_chat_context_store is None:
+            exchange.redis_context_persistence_error = "redis_context_store_unavailable"
+            return
+
+        redis_write_succeeded = self.redis_chat_context_store.append_message(
+            session_id=exchange.effective_session_id,
+            role=role,
+            content=content,
+        )
+        if redis_write_succeeded:
+            exchange.redis_context_persisted = True
+            return
+        exchange.redis_context_persistence_error = "redis_context_write_failed"
 
     def persist_tool_invocation_logs(
         self,
@@ -243,6 +300,7 @@ class ChatPersistenceCoordinator:
                             "assistant_message_persisted": exchange.assistant_message_persisted,
                             "tool_logs_persisted": exchange.tool_logs_persisted,
                             "operational_records_persisted": exchange.operational_records_persisted,
+                            "redis_context_persisted": exchange.redis_context_persisted,
                         },
                         "persistence_errors": {
                             "session": exchange.session_persistence_error,
@@ -250,6 +308,7 @@ class ChatPersistenceCoordinator:
                             "assistant_message": exchange.assistant_message_persistence_error,
                             "tool_logs": exchange.tool_logs_persistence_error,
                             "operational_records": exchange.operational_records_persistence_error,
+                            "redis_context": exchange.redis_context_persistence_error,
                         },
                         "write_order": list(exchange.write_order),
                     },
@@ -360,5 +419,7 @@ class ChatPersistenceCoordinator:
             audit_events_persistence_error=exchange.audit_events_persistence_error,
             operational_records_persisted=exchange.operational_records_persisted,
             operational_records_persistence_error=exchange.operational_records_persistence_error,
+            redis_context_persisted=exchange.redis_context_persisted,
+            redis_context_persistence_error=exchange.redis_context_persistence_error,
             write_order=list(exchange.write_order),
         )

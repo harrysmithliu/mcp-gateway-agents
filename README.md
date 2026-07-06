@@ -120,6 +120,8 @@ python3 -m pip install -e .
 cp .env.example .env
 ```
 
+For a full local stack bootstrap and end-to-end verification workflow, see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+
 ### 4. Start the backend
 
 ```bash

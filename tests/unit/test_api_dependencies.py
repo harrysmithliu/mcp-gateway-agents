@@ -28,6 +28,7 @@ def test_create_app_initializes_application_container() -> None:
     assert created_app.state.container.operations_service is not None
     assert created_app.state.container.storage_bundle is not None
     assert created_app.state.container.chat_persistence_coordinator is not None
+    assert created_app.state.container.redis_chat_context_store is not None
 
 
 def test_chat_route_uses_app_level_container_dependencies() -> None:
@@ -84,6 +85,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         operations_service=original_container.operations_service,
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
+        redis_chat_context_store=original_container.redis_chat_context_store,
     )
 
     try:
@@ -142,6 +144,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
         operations_service=original_container.operations_service,
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
+        redis_chat_context_store=original_container.redis_chat_context_store,
     )
 
     try:

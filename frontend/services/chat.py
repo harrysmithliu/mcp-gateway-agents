@@ -38,6 +38,7 @@ class ChatApiPlannerResult:
 @dataclass(slots=True)
 class ChatApiResponse:
     reply_text: str
+    session_id: str | None = None
     tool_names: list[str] = field(default_factory=list)
     planned_tool_calls: list[ChatApiPlannedToolCall] = field(default_factory=list)
     tool_invocation_results: list[ChatApiToolInvocationResult] = field(default_factory=list)
@@ -105,6 +106,7 @@ def post_chat_message(
     )
 
     return ChatApiResponse(
+        session_id=response_payload.get("session_id"),
         reply_text=response_payload["reply_text"],
         tool_names=response_payload.get("tool_names", []),
         planned_tool_calls=[

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from backend.services.common import tokenize_text
+from backend.services.demo_data import load_demo_dataset
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,43 +18,20 @@ class RiskAccountProfile:
     keywords: tuple[str, ...]
 
 
-DEFAULT_RISK_ACCOUNT_PROFILES = (
+DEFAULT_RISK_ACCOUNT_PROFILES = tuple(
     RiskAccountProfile(
-        profile_id="risk-profile-atlas",
-        account_label="Atlas Prime Borrower",
-        account_id="acct-atlas-01",
-        risk_score=82,
-        risk_level="high",
-        review_status="escalate",
-        exposure_usd=460000,
-        alert_count_30d=4,
-        risk_flags=("exposure_growth", "alert_recurrence"),
-        keywords=("risk", "account", "borrower", "atlas", "prime", "score"),
-    ),
-    RiskAccountProfile(
-        profile_id="risk-profile-beacon",
-        account_label="Beacon Treasury Account",
-        account_id="acct-beacon-17",
-        risk_score=58,
-        risk_level="medium",
-        review_status="monitor",
-        exposure_usd=190000,
-        alert_count_30d=1,
-        risk_flags=("concentration_watch",),
-        keywords=("risk", "account", "treasury", "beacon", "score", "review"),
-    ),
-    RiskAccountProfile(
-        profile_id="risk-profile-cobalt",
-        account_label="Cobalt Growth Borrower",
-        account_id="acct-cobalt-33",
-        risk_score=31,
-        risk_level="low",
-        review_status="clear",
-        exposure_usd=72000,
-        alert_count_30d=0,
-        risk_flags=("none",),
-        keywords=("risk", "borrower", "account", "cobalt", "growth", "score"),
-    ),
+        profile_id=str(record["profile_id"]),
+        account_label=str(record["account_label"]),
+        account_id=str(record["account_id"]),
+        risk_score=int(record["risk_score"]),
+        risk_level=str(record["risk_level"]),
+        review_status=str(record["review_status"]),
+        exposure_usd=int(record["exposure_usd"]),
+        alert_count_30d=int(record["alert_count_30d"]),
+        risk_flags=tuple(str(flag) for flag in record["risk_flags"]),
+        keywords=tuple(str(keyword) for keyword in record["keywords"]),
+    )
+    for record in load_demo_dataset("risk")
 )
 
 

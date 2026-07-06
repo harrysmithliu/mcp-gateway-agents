@@ -36,6 +36,7 @@ from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
 from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
 from backend.retrieval.service import RetrievalService
 from backend.storage.chat_persistence import ChatPersistenceCoordinator
+from backend.storage.redis_chat_context import RedisChatContextStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +84,7 @@ class AgentService:
     retrieval_service: RetrievalService = field(default_factory=RetrievalService)
     guardrail_policy: GuardrailPolicy = field(default_factory=GuardrailPolicy)
     chat_persistence_coordinator: ChatPersistenceCoordinator | None = None
+    redis_chat_context_store: RedisChatContextStore | None = None
 
     def describe(self) -> str:
         return (
@@ -540,6 +542,17 @@ class AgentService:
         normalized_role = command.user_role.strip().lower()
         normalized_text = command.message_text.strip()
         active_registry = registry or build_default_registry()
+        effective_recent_messages = list(command.recent_messages)
+
+        if (
+            not effective_recent_messages
+            and command.session_id is not None
+            and self.redis_chat_context_store is not None
+        ):
+            effective_recent_messages = self.redis_chat_context_store.load_recent_messages(
+                session_id=command.session_id,
+                limit=6,
+            )
 
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
@@ -573,7 +586,7 @@ class AgentService:
                 normalized_text=normalized_text,
                 registry=active_registry,
                 session_id=active_session_id,
-                recent_messages=command.recent_messages,
+                recent_messages=effective_recent_messages,
             )
         )
         tool_invocation_results, invocation_evidence = self.invoke_planned_tool_calls(

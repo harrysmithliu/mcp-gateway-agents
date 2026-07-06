@@ -10,6 +10,7 @@ from backend.services.knowledge import KnowledgeService
 from backend.services.operations import OperationsService
 from backend.services.risk import RiskService
 from backend.storage.chat_persistence import ChatPersistenceCoordinator
+from backend.storage.redis_chat_context import RedisChatContextStore
 from backend.storage.runtime import StorageBundle, build_storage_bundle
 from backend.storage.settings import get_settings
 from backend.services.trade import TradeService
@@ -29,6 +30,7 @@ class ApplicationContainer:
     operations_service: OperationsService
     storage_bundle: StorageBundle
     chat_persistence_coordinator: ChatPersistenceCoordinator
+    redis_chat_context_store: RedisChatContextStore
 
 
 def build_application_container() -> ApplicationContainer:
@@ -40,14 +42,17 @@ def build_application_container() -> ApplicationContainer:
     trade_service = TradeService()
     operations_service = OperationsService()
     storage_bundle = build_storage_bundle(settings)
+    redis_chat_context_store = RedisChatContextStore(redis_url=settings.redis_url)
     chat_persistence_coordinator = ChatPersistenceCoordinator(
-        storage_bundle=storage_bundle
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=redis_chat_context_store,
     )
     return ApplicationContainer(
         agent_service=AgentService(
             retrieval_service=retrieval_service,
             guardrail_policy=guardrail_policy,
             chat_persistence_coordinator=chat_persistence_coordinator,
+            redis_chat_context_store=redis_chat_context_store,
         ),
         tool_registry=build_default_registry(
             knowledge_service=knowledge_service,
@@ -63,6 +68,7 @@ def build_application_container() -> ApplicationContainer:
         operations_service=operations_service,
         storage_bundle=storage_bundle,
         chat_persistence_coordinator=chat_persistence_coordinator,
+        redis_chat_context_store=redis_chat_context_store,
     )
 
 

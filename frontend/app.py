@@ -9,7 +9,13 @@ from frontend.services.chat import (
     post_risk_score_account,
     post_trade_query_metrics,
 )
-from frontend.services.session import ROLE_OPTIONS, get_active_role, set_active_role
+from frontend.services.session import (
+    ROLE_OPTIONS,
+    get_active_chat_session_id,
+    get_active_role,
+    set_active_chat_session_id,
+    set_active_role,
+)
 
 
 st.set_page_config(
@@ -42,10 +48,15 @@ col3.info("Initial SQL migrations define the first schemas and core operational 
 
 st.markdown("### Demo Session")
 st.write(f"Active role: `{get_active_role()}`")
+st.write(f"Active chat session: `{get_active_chat_session_id() or 'not started'}`")
 st.write(
     "Use the pages in the left navigation as placeholders for the future login, dashboard, "
     "and operations experience."
 )
+
+if st.button("Reset Chat Session", use_container_width=False):
+    set_active_chat_session_id(None)
+    st.info("Chat session reset.")
 
 st.markdown("### Demo Chat")
 default_prompt = "Review this account for trade risk and recommend next steps."
@@ -77,8 +88,12 @@ if submitted:
         chat_response: ChatApiResponse = post_chat_message(
             user_role=get_active_role(),
             message_text=message_text,
+            session_id=get_active_chat_session_id(),
         )
+        set_active_chat_session_id(chat_response.session_id)
         st.success("Chat response received.")
+        if chat_response.session_id:
+            st.caption(f"Session ID: `{chat_response.session_id}`")
         st.write(chat_response.reply_text)
 
         if chat_response.tool_names:

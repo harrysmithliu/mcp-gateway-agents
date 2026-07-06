@@ -238,3 +238,78 @@ def test_handle_command_routes_through_chat_persistence_coordinator() -> None:
     assert coordinator.finished[0][0] is coordinator.started[0]
     assert coordinator.finished[0][1] is result
     assert result.session_id == "session-round-1"
+
+
+def test_handle_command_loads_recent_messages_from_redis_context_store() -> None:
+    class FakeRedisChatContextStore:
+        def __init__(self) -> None:
+            self.load_calls: list[tuple[str | None, int | None]] = []
+
+        def load_recent_messages(
+            self,
+            session_id: str | None,
+            limit: int | None = None,
+        ) -> list[ChatHistoryMessage]:
+            self.load_calls.append((session_id, limit))
+            return [
+                ChatHistoryMessage(role="user", content="Redis previous question"),
+                ChatHistoryMessage(role="assistant", content="Redis previous answer"),
+            ]
+
+    captured_recent_messages: dict[str, list[ChatHistoryMessage]] = {}
+
+    def capture_plan_tool_calls_with_langchain(
+        self: AgentService,
+        normalized_role: str,
+        normalized_text: str,
+        registry,
+        session_id: str | None = None,
+        recent_messages: list[ChatHistoryMessage] | None = None,
+    ):
+        _ = self, normalized_role, normalized_text, registry, session_id
+        captured_recent_messages["recent_messages"] = list(recent_messages or [])
+        return (
+            ["knowledge.search"],
+            [],
+            [],
+            [],
+            type(
+                "PlannerResultStub",
+                (),
+                {
+                    "planner_source": "rule_fallback",
+                    "raw_output_text": None,
+                    "candidate_tool_names": [],
+                    "selected_tool_names": ["knowledge.search"],
+                    "used_fallback": True,
+                    "fallback_reason": "captured",
+                },
+            )(),
+        )
+
+    redis_store = FakeRedisChatContextStore()
+    agent_service = AgentService(
+        redis_chat_context_store=redis_store,
+    )
+    registry = build_default_registry()
+
+    original_method = AgentService.plan_tool_calls_with_langchain
+    AgentService.plan_tool_calls_with_langchain = capture_plan_tool_calls_with_langchain
+    try:
+        agent_service.handle_command(
+            ChatCommand(
+                user_role="analyst",
+                message_text="Search the policy playbook.",
+                session_id="session-round-7-redis",
+                recent_messages=[],
+            ),
+            registry=registry,
+        )
+    finally:
+        AgentService.plan_tool_calls_with_langchain = original_method
+
+    assert redis_store.load_calls == [("session-round-7-redis", 6)]
+    assert captured_recent_messages["recent_messages"] == [
+        ChatHistoryMessage(role="user", content="Redis previous question"),
+        ChatHistoryMessage(role="assistant", content="Redis previous answer"),
+    ]

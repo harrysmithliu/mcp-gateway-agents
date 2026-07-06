@@ -12,6 +12,7 @@ from backend.storage.chat_persistence import (
     ChatPersistenceResult,
 )
 from backend.storage.db import SQLStatement
+from backend.storage.redis_chat_context import RedisChatContextStore
 from backend.storage.models import (
     AuditEventRecord,
     ChatMessageRecord,
@@ -44,6 +45,57 @@ class FakeStorageBundle:
         self.tool_call_log_repository = FakeToolCallLogRepository()
         self.audit_event_repository = FakeAuditEventRepository()
         self.risk_alert_repository = FakeRiskAlertRepository()
+
+
+class FakeRedisChatContextStore:
+    def __init__(self) -> None:
+        self.messages_by_session: dict[str, list[ChatHistoryMessage]] = {}
+        self.append_calls: list[tuple[str | None, str, str]] = []
+
+    def load_recent_messages(
+        self,
+        session_id: str | None,
+        limit: int | None = None,
+    ) -> list[ChatHistoryMessage]:
+        if session_id is None:
+            return []
+        messages = list(self.messages_by_session.get(session_id, []))
+        if limit is None:
+            return messages
+        return messages[-limit:]
+
+    def append_message(
+        self,
+        session_id: str | None,
+        role: str,
+        content: str,
+    ) -> bool:
+        self.append_calls.append((session_id, role, content))
+        if session_id is None:
+            return False
+        self.messages_by_session.setdefault(session_id, []).append(
+            ChatHistoryMessage(role=role, content=content)
+        )
+        return True
+
+
+class FailingRedisChatContextStore:
+    def load_recent_messages(
+        self,
+        session_id: str | None,
+        limit: int | None = None,
+    ) -> list[ChatHistoryMessage]:
+        _ = session_id, limit
+        return []
+
+    def append_message(
+        self,
+        session_id: str | None,
+        role: str,
+        content: str,
+    ) -> bool:
+        _ = session_id, role, content
+        return False
 
 
 class FakeChatMessageRepository:
@@ -194,7 +246,11 @@ class OpsRecordFailingStorageBundle:
 
 def test_chat_persistence_coordinator_starts_exchange_from_chat_command() -> None:
     storage_bundle = FakeStorageBundle()
-    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+    redis_store = FakeRedisChatContextStore()
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=redis_store,
+    )
 
     exchange = coordinator.start_exchange(
         command=ChatCommand(
@@ -220,7 +276,9 @@ def test_chat_persistence_coordinator_starts_exchange_from_chat_command() -> Non
     assert exchange.write_order == [
         "ensure_chat_session",
         "append_user_message",
+        "persist_redis_user_message",
     ]
+    assert exchange.redis_context_persisted is True
     assert exchange.recent_messages == [
         ChatHistoryMessage(role="user", content="Earlier question")
     ]
@@ -235,11 +293,18 @@ def test_chat_persistence_coordinator_starts_exchange_from_chat_command() -> Non
     assert storage_bundle.chat_message_repository.records[0].session_id == "session-round-1"
     assert storage_bundle.chat_message_repository.records[0].sender_type == "user"
     assert storage_bundle.chat_message_repository.records[0].message_text == "Review this account."
+    assert redis_store.messages_by_session["session-round-1"] == [
+        ChatHistoryMessage(role="user", content="Review this account.")
+    ]
 
 
 def test_chat_persistence_coordinator_finishes_exchange_with_noop_result() -> None:
     storage_bundle = FakeStorageBundle()
-    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+    redis_store = FakeRedisChatContextStore()
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=redis_store,
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -262,10 +327,13 @@ def test_chat_persistence_coordinator_finishes_exchange_with_noop_result() -> No
         tool_logs_persisted=True,
         audit_events_persisted=True,
         operational_records_persisted=True,
+        redis_context_persisted=True,
         write_order=[
             "ensure_chat_session",
             "append_user_message",
+            "persist_redis_user_message",
             "append_assistant_message",
+            "persist_redis_assistant_message",
             "persist_tool_invocation_logs",
             "persist_operational_records",
             "persist_audit_events",
@@ -275,11 +343,18 @@ def test_chat_persistence_coordinator_finishes_exchange_with_noop_result() -> No
     assert storage_bundle.chat_message_repository.records[1].sender_type == "assistant"
     assert storage_bundle.chat_message_repository.records[1].message_text == "placeholder"
     assert storage_bundle.audit_event_repository.records[0].event_type == "chat_exchange_completed"
+    assert redis_store.messages_by_session["session-round-1"] == [
+        ChatHistoryMessage(role="user", content="Review this account."),
+        ChatHistoryMessage(role="assistant", content="placeholder"),
+    ]
 
 
 def test_chat_persistence_coordinator_generates_session_id_when_missing() -> None:
     storage_bundle = FakeStorageBundle()
-    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
 
     exchange = coordinator.start_exchange(
         command=ChatCommand(
@@ -299,7 +374,10 @@ def test_chat_persistence_coordinator_generates_session_id_when_missing() -> Non
 
 
 def test_chat_persistence_coordinator_keeps_main_flow_alive_when_write_fails() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=FailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=FailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
 
     exchange = coordinator.start_exchange(
         command=ChatCommand(
@@ -330,10 +408,13 @@ def test_chat_persistence_coordinator_keeps_main_flow_alive_when_write_fails() -
         audit_events_persisted=False,
         audit_events_persistence_error="audit_events_skipped_missing_session",
         operational_records_persisted=True,
+        redis_context_persisted=True,
         write_order=[
             "ensure_chat_session",
             "append_user_message",
+            "persist_redis_user_message",
             "append_assistant_message",
+            "persist_redis_assistant_message",
             "persist_tool_invocation_logs",
             "persist_operational_records",
             "persist_audit_events",
@@ -342,7 +423,10 @@ def test_chat_persistence_coordinator_keeps_main_flow_alive_when_write_fails() -
 
 
 def test_chat_persistence_coordinator_tolerates_message_write_failures() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=MessageFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=MessageFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
 
     exchange = coordinator.start_exchange(
         command=ChatCommand(
@@ -373,10 +457,13 @@ def test_chat_persistence_coordinator_tolerates_message_write_failures() -> None
         tool_logs_persisted=True,
         audit_events_persisted=True,
         operational_records_persisted=True,
+        redis_context_persisted=True,
         write_order=[
             "ensure_chat_session",
             "append_user_message",
+            "persist_redis_user_message",
             "append_assistant_message",
+            "persist_redis_assistant_message",
             "persist_tool_invocation_logs",
             "persist_operational_records",
             "persist_audit_events",
@@ -386,7 +473,10 @@ def test_chat_persistence_coordinator_tolerates_message_write_failures() -> None
 
 def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> None:
     storage_bundle = FakeStorageBundle()
-    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -426,7 +516,9 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
     assert result.write_order == [
         "ensure_chat_session",
         "append_user_message",
+        "persist_redis_user_message",
         "append_assistant_message",
+        "persist_redis_assistant_message",
         "persist_tool_invocation_logs",
         "persist_operational_records",
         "persist_audit_events",
@@ -449,7 +541,10 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
 
 
 def test_chat_persistence_coordinator_tolerates_tool_log_write_failures() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=ToolLogFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=ToolLogFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -485,7 +580,10 @@ def test_chat_persistence_coordinator_tolerates_tool_log_write_failures() -> Non
 
 
 def test_chat_persistence_coordinator_tolerates_audit_write_failures() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=AuditFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=AuditFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -522,7 +620,10 @@ def test_chat_persistence_coordinator_tolerates_audit_write_failures() -> None:
 
 def test_chat_persistence_coordinator_persists_operational_record_from_ops_tool() -> None:
     storage_bundle = FakeStorageBundle()
-    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=storage_bundle,
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -578,7 +679,10 @@ def test_chat_persistence_coordinator_persists_operational_record_from_ops_tool(
 
 
 def test_chat_persistence_coordinator_tolerates_operational_record_failures() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=OpsRecordFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=OpsRecordFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -622,7 +726,10 @@ def test_chat_persistence_coordinator_tolerates_operational_record_failures() ->
 
 
 def test_chat_persistence_coordinator_skips_tool_logs_without_user_message_anchor() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=MessageFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=MessageFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -659,7 +766,10 @@ def test_chat_persistence_coordinator_skips_tool_logs_without_user_message_ancho
 
 
 def test_chat_persistence_coordinator_skips_operational_record_without_assistant_message() -> None:
-    coordinator = ChatPersistenceCoordinator(storage_bundle=MessageFailingStorageBundle())
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=MessageFailingStorageBundle(),
+        redis_chat_context_store=FakeRedisChatContextStore(),
+    )
     exchange = coordinator.start_exchange(
         command=ChatCommand(
             user_role="analyst",
@@ -700,3 +810,29 @@ def test_chat_persistence_coordinator_skips_operational_record_without_assistant
         == "operational_records_skipped_missing_assistant_message"
     )
     assert result.audit_events_persisted is True
+
+
+def test_chat_persistence_coordinator_tolerates_redis_context_failures() -> None:
+    coordinator = ChatPersistenceCoordinator(
+        storage_bundle=FakeStorageBundle(),
+        redis_chat_context_store=FailingRedisChatContextStore(),
+    )
+    exchange = coordinator.start_exchange(
+        command=ChatCommand(
+            user_role="analyst",
+            message_text="Review this account.",
+            session_id="session-round-7-redis-failure",
+        ),
+        normalized_role="analyst",
+        normalized_text="Review this account.",
+    )
+
+    result = coordinator.finish_exchange(
+        exchange=exchange,
+        agent_response=AgentResponse(reply_text="placeholder"),
+    )
+
+    assert exchange.redis_context_persisted is False
+    assert exchange.redis_context_persistence_error == "redis_context_write_failed"
+    assert result.redis_context_persisted is False
+    assert result.redis_context_persistence_error == "redis_context_write_failed"
