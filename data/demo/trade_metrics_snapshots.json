@@ -1,28 +1,31 @@
 [
   {
-    "snapshot_id": "trade-snapshot-alpha",
-    "account_label": "Alpha Market Maker",
-    "wallet_id": "wallet-alpha-01",
+    "snapshot_id": "trade-snapshot-atlas",
+    "account_id": "acct-atlas-01",
+    "account_label": "Atlas Prime Borrower",
+    "wallet_id": "wallet-atlas-01",
     "order_count_24h": 184,
     "filled_notional_usd_24h": 2450000,
     "net_exposure_usd": 320000,
     "concentration_ratio": 0.41,
     "anomaly_flags": ["exposure_shift"],
-    "keywords": ["trade", "wallet", "volume", "market", "maker", "alpha"]
+    "keywords": ["trade", "wallet", "volume", "atlas", "prime", "borrower", "exposure"]
   },
   {
-    "snapshot_id": "trade-snapshot-beta",
-    "account_label": "Beta Treasury Wallet",
-    "wallet_id": "wallet-beta-17",
+    "snapshot_id": "trade-snapshot-beacon",
+    "account_id": "acct-beacon-17",
+    "account_label": "Beacon Treasury Account",
+    "wallet_id": "wallet-beacon-17",
     "order_count_24h": 42,
     "filled_notional_usd_24h": 780000,
     "net_exposure_usd": 110000,
     "concentration_ratio": 0.28,
     "anomaly_flags": ["none"],
-    "keywords": ["trade", "wallet", "treasury", "beta", "exposure"]
+    "keywords": ["trade", "wallet", "treasury", "beacon", "account", "exposure"]
   },
   {
     "snapshot_id": "trade-snapshot-gamma",
+    "account_id": "acct-gamma-88",
     "account_label": "Gamma High-Volume Desk",
     "wallet_id": "wallet-gamma-88",
     "order_count_24h": 267,
@@ -30,6 +33,6 @@
     "net_exposure_usd": 540000,
     "concentration_ratio": 0.57,
     "anomaly_flags": ["volume_spike", "concentration_risk"],
-    "keywords": ["trade", "wallet", "order", "volume", "gamma", "desk"]
+    "keywords": ["trade", "wallet", "order", "volume", "gamma", "desk", "account"]
   }
 ]

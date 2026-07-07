@@ -1,0 +1,218 @@
+[
+  {
+    "account_id": "acct-atlas-01",
+    "account_label": "Atlas Prime Borrower",
+    "customer_id": "cust-atlas",
+    "account_type": "prime_margin",
+    "jurisdiction": "US",
+    "base_currency": "USD",
+    "risk_level": "high",
+    "review_status": "escalate",
+    "anomaly_flags": ["exposure_growth", "alert_recurrence"],
+    "keywords": ["account", "atlas", "borrower", "prime", "margin", "exposure", "risk"],
+    "balances": [
+      {
+        "asset": "USD",
+        "available": 185000.0,
+        "locked": 25000.0,
+        "usd_value": 210000.0
+      },
+      {
+        "asset": "BTC",
+        "available": 3.2,
+        "locked": 0.4,
+        "usd_value": 228000.0
+      }
+    ],
+    "positions": [
+      {
+        "symbol": "BTC-USD",
+        "side": "long",
+        "quantity": 4.8,
+        "mark_price": 71250.0,
+        "market_value_usd": 342000.0
+      },
+      {
+        "symbol": "ETH-USD",
+        "side": "short",
+        "quantity": 35.0,
+        "mark_price": 3550.0,
+        "market_value_usd": 124250.0
+      }
+    ],
+    "recent_orders": [
+      {
+        "order_id": "ord-atlas-1001",
+        "symbol": "BTC-USD",
+        "side": "buy",
+        "status": "filled",
+        "order_type": "limit",
+        "notional_usd": 85000.0,
+        "created_at": "2026-07-06T13:10:00Z"
+      },
+      {
+        "order_id": "ord-atlas-1002",
+        "symbol": "ETH-USD",
+        "side": "sell",
+        "status": "open",
+        "order_type": "market",
+        "notional_usd": 42000.0,
+        "created_at": "2026-07-06T14:25:00Z"
+      }
+    ],
+    "recent_trades": [
+      {
+        "trade_id": "trd-atlas-2001",
+        "symbol": "BTC-USD",
+        "side": "buy",
+        "quantity": 1.2,
+        "notional_usd": 85500.0,
+        "executed_at": "2026-07-06T13:12:00Z"
+      },
+      {
+        "trade_id": "trd-atlas-2002",
+        "symbol": "ETH-USD",
+        "side": "sell",
+        "quantity": 10.0,
+        "notional_usd": 35500.0,
+        "executed_at": "2026-07-06T14:31:00Z"
+      }
+    ]
+  },
+  {
+    "account_id": "acct-beacon-17",
+    "account_label": "Beacon Treasury Account",
+    "customer_id": "cust-beacon",
+    "account_type": "treasury",
+    "jurisdiction": "CA",
+    "base_currency": "USD",
+    "risk_level": "medium",
+    "review_status": "monitor",
+    "anomaly_flags": ["concentration_watch"],
+    "keywords": ["account", "beacon", "treasury", "stablecoin", "review", "monitor"],
+    "balances": [
+      {
+        "asset": "USD",
+        "available": 132000.0,
+        "locked": 8000.0,
+        "usd_value": 140000.0
+      },
+      {
+        "asset": "USDC",
+        "available": 52000.0,
+        "locked": 0.0,
+        "usd_value": 52000.0
+      }
+    ],
+    "positions": [
+      {
+        "symbol": "SOL-USD",
+        "side": "long",
+        "quantity": 950.0,
+        "mark_price": 148.0,
+        "market_value_usd": 140600.0
+      }
+    ],
+    "recent_orders": [
+      {
+        "order_id": "ord-beacon-1001",
+        "symbol": "SOL-USD",
+        "side": "buy",
+        "status": "filled",
+        "order_type": "limit",
+        "notional_usd": 36000.0,
+        "created_at": "2026-07-06T11:05:00Z"
+      }
+    ],
+    "recent_trades": [
+      {
+        "trade_id": "trd-beacon-2001",
+        "symbol": "SOL-USD",
+        "side": "buy",
+        "quantity": 250.0,
+        "notional_usd": 37000.0,
+        "executed_at": "2026-07-06T11:08:00Z"
+      }
+    ]
+  },
+  {
+    "account_id": "acct-gamma-88",
+    "account_label": "Gamma High-Volume Desk",
+    "customer_id": "cust-gamma",
+    "account_type": "market_making",
+    "jurisdiction": "SG",
+    "base_currency": "USD",
+    "risk_level": "medium",
+    "review_status": "review",
+    "anomaly_flags": ["volume_spike", "concentration_risk"],
+    "keywords": ["account", "gamma", "desk", "volume", "trading", "activity", "concentration"],
+    "balances": [
+      {
+        "asset": "USD",
+        "available": 260000.0,
+        "locked": 40000.0,
+        "usd_value": 300000.0
+      },
+      {
+        "asset": "ETH",
+        "available": 42.0,
+        "locked": 6.0,
+        "usd_value": 170400.0
+      }
+    ],
+    "positions": [
+      {
+        "symbol": "ETH-USD",
+        "side": "long",
+        "quantity": 48.0,
+        "mark_price": 3550.0,
+        "market_value_usd": 170400.0
+      },
+      {
+        "symbol": "SOL-USD",
+        "side": "long",
+        "quantity": 1800.0,
+        "mark_price": 148.0,
+        "market_value_usd": 266400.0
+      }
+    ],
+    "recent_orders": [
+      {
+        "order_id": "ord-gamma-1001",
+        "symbol": "ETH-USD",
+        "side": "buy",
+        "status": "filled",
+        "order_type": "market",
+        "notional_usd": 120000.0,
+        "created_at": "2026-07-06T09:20:00Z"
+      },
+      {
+        "order_id": "ord-gamma-1002",
+        "symbol": "SOL-USD",
+        "side": "sell",
+        "status": "cancelled",
+        "order_type": "limit",
+        "notional_usd": 54000.0,
+        "created_at": "2026-07-06T10:45:00Z"
+      }
+    ],
+    "recent_trades": [
+      {
+        "trade_id": "trd-gamma-2001",
+        "symbol": "ETH-USD",
+        "side": "buy",
+        "quantity": 18.0,
+        "notional_usd": 63900.0,
+        "executed_at": "2026-07-06T09:22:00Z"
+      },
+      {
+        "trade_id": "trd-gamma-2002",
+        "symbol": "SOL-USD",
+        "side": "sell",
+        "quantity": 400.0,
+        "notional_usd": 59200.0,
+        "executed_at": "2026-07-06T10:51:00Z"
+      }
+    ]
+  }
+]

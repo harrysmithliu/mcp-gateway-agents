@@ -7,6 +7,7 @@ from backend.services.demo_data import load_demo_dataset
 @dataclass(frozen=True, slots=True)
 class TradeMetricsSnapshot:
     snapshot_id: str
+    account_id: str
     account_label: str
     wallet_id: str
     order_count_24h: int
@@ -20,6 +21,7 @@ class TradeMetricsSnapshot:
 DEFAULT_TRADE_METRICS_SNAPSHOTS = tuple(
     TradeMetricsSnapshot(
         snapshot_id=str(record["snapshot_id"]),
+        account_id=str(record["account_id"]),
         account_label=str(record["account_label"]),
         wallet_id=str(record["wallet_id"]),
         order_count_24h=int(record["order_count_24h"]),
@@ -53,6 +55,7 @@ class TradeService:
             ranked_snapshots.append(
                 {
                     "snapshot_id": snapshot.snapshot_id,
+                    "account_id": snapshot.account_id,
                     "account_label": snapshot.account_label,
                     "wallet_id": snapshot.wallet_id,
                     "order_count_24h": snapshot.order_count_24h,

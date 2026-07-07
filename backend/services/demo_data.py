@@ -12,6 +12,7 @@ DEMO_DATASET_FILES = {
     "risk": "risk_account_profiles.json",
     "trade": "trade_metrics_snapshots.json",
     "operations": "ops_action_templates.json",
+    "accounts": "account_domain_records.json",
 }
 
 

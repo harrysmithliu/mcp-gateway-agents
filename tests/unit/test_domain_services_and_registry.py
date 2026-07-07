@@ -37,20 +37,24 @@ def test_trade_service_query_metrics_returns_aggregated_metrics() -> None:
     assert response_payload["total_matches"] >= 1
     assert response_payload["total_filled_notional_usd_24h"] >= 0
     assert response_payload["snapshots"]
+    assert response_payload["snapshots"][0]["account_id"] == "acct-gamma-88"
+    assert response_payload["snapshots"][0]["account_label"] == "Gamma High-Volume Desk"
 
 
 def test_risk_service_score_account_returns_ranked_profiles() -> None:
     risk_service = RiskService()
 
     response_payload = risk_service.score_account(
-        query_text="risk borrower account atlas score",
+        query_text="risk gamma desk account review",
         limit=3,
     )
 
-    assert response_payload["query"] == "risk borrower account atlas score"
+    assert response_payload["query"] == "risk gamma desk account review"
     assert response_payload["total_matches"] >= 1
     assert response_payload["highest_risk_score"] >= 0
     assert response_payload["profiles"]
+    assert response_payload["profiles"][0]["account_id"] == "acct-gamma-88"
+    assert response_payload["profiles"][0]["account_label"] == "Gamma High-Volume Desk"
 
 
 def test_operations_service_create_alert_or_action_returns_recommendation() -> None:

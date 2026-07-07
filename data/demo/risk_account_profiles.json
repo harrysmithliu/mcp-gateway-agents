@@ -24,15 +24,15 @@
     "keywords": ["risk", "account", "treasury", "beacon", "score", "review"]
   },
   {
-    "profile_id": "risk-profile-cobalt",
-    "account_label": "Cobalt Growth Borrower",
-    "account_id": "acct-cobalt-33",
-    "risk_score": 31,
-    "risk_level": "low",
-    "review_status": "clear",
-    "exposure_usd": 72000,
-    "alert_count_30d": 0,
-    "risk_flags": ["none"],
-    "keywords": ["risk", "borrower", "account", "cobalt", "growth", "score"]
+    "profile_id": "risk-profile-gamma",
+    "account_label": "Gamma High-Volume Desk",
+    "account_id": "acct-gamma-88",
+    "risk_score": 67,
+    "risk_level": "medium",
+    "review_status": "review",
+    "exposure_usd": 540000,
+    "alert_count_30d": 2,
+    "risk_flags": ["volume_spike", "concentration_risk"],
+    "keywords": ["risk", "account", "gamma", "desk", "review", "score", "volume"]
   }
 ]
