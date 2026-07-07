@@ -48,3 +48,19 @@ def test_account_domain_service_get_account_overview_returns_detail_payload() ->
     assert response_payload["recent_trades"]
     assert response_payload["total_balance_usd"] > 0
     assert response_payload["total_position_market_value_usd"] > 0
+
+
+def test_account_domain_service_get_recent_activity_summary_returns_summary() -> None:
+    service = AccountDomainService()
+
+    response_payload = service.get_recent_activity_summary("acct-atlas-01")
+
+    assert response_payload is not None
+    assert response_payload["account_id"] == "acct-atlas-01"
+    assert response_payload["account_label"] == "Atlas Prime Borrower"
+    assert response_payload["recent_order_count"] == 2
+    assert response_payload["recent_trade_count"] == 2
+    assert response_payload["latest_order_at"] == "2026-07-06T14:25:00Z"
+    assert response_payload["latest_trade_at"] == "2026-07-06T14:31:00Z"
+    assert response_payload["recent_order_symbols"] == ["BTC-USD", "ETH-USD"]
+    assert response_payload["recent_trade_symbols"] == ["BTC-USD", "ETH-USD"]

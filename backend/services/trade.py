@@ -39,6 +39,26 @@ DEFAULT_TRADE_METRICS_SNAPSHOTS = tuple(
 class TradeService:
     snapshots: tuple[TradeMetricsSnapshot, ...] = DEFAULT_TRADE_METRICS_SNAPSHOTS
 
+    def get_metrics_by_account(
+        self,
+        account_id: str,
+    ) -> dict[str, object] | None:
+        for snapshot in self.snapshots:
+            if snapshot.account_id != account_id:
+                continue
+            return {
+                "snapshot_id": snapshot.snapshot_id,
+                "account_id": snapshot.account_id,
+                "account_label": snapshot.account_label,
+                "wallet_id": snapshot.wallet_id,
+                "order_count_24h": snapshot.order_count_24h,
+                "filled_notional_usd_24h": snapshot.filled_notional_usd_24h,
+                "net_exposure_usd": snapshot.net_exposure_usd,
+                "concentration_ratio": snapshot.concentration_ratio,
+                "anomaly_flags": list(snapshot.anomaly_flags),
+            }
+        return None
+
     def query_metrics(
         self,
         query_text: str,

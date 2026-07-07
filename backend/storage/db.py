@@ -72,3 +72,16 @@ class DatabaseClient:
             with connection.cursor() as cursor:
                 cursor.execute(statement.sql, normalized_params)
             connection.commit()
+
+    def fetch_all(self, statement: SQLStatement) -> list[dict[str, object]]:
+        psycopg = self._import_psycopg()
+        normalized_params = self._normalize_statement_params(statement, psycopg)
+        with self.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(statement.sql, normalized_params)
+                rows = cursor.fetchall()
+                columns = [column.name for column in cursor.description or ()]
+        return [
+            {column: value for column, value in zip(columns, row, strict=False)}
+            for row in rows
+        ]

@@ -225,3 +225,27 @@ class AccountDomainService:
             "total_balance_usd": sum(balance.usd_value for balance in record.balances),
             "total_position_market_value_usd": sum(position.market_value_usd for position in record.positions),
         }
+    
+
+
+    def get_recent_activity_summary(self, account_id: str) -> dict[str, object] | None:
+        record = self.get_account(account_id)
+        if not record:
+            return None
+
+        order_timestamps = [order.created_at for order in record.recent_orders]
+        trade_timestamps = [trade.executed_at for trade in record.recent_trades]
+
+        recent_order_symbols = sorted({order.symbol for order in record.recent_orders})
+        recent_trade_symbols = sorted({trade.symbol for trade in record.recent_trades})
+
+        return {
+            "account_id": record.account_id,
+            "account_label": record.account_label,
+            "recent_order_count": len(record.recent_orders),
+            "recent_trade_count": len(record.recent_trades),
+            "latest_order_at": max(order_timestamps) if order_timestamps else None,
+            "latest_trade_at": max(trade_timestamps) if trade_timestamps else None,
+            "recent_order_symbols": recent_order_symbols,
+            "recent_trade_symbols": recent_trade_symbols,
+        }

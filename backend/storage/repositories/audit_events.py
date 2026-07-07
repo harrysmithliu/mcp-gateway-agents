@@ -28,3 +28,33 @@ class AuditEventRepository:
         )
         self.executor.execute(statement)
         return statement
+
+    def list_recent_events(
+        self,
+        limit: int = 10,
+        event_type: str | None = None,
+    ) -> list[dict[str, object]]:
+        if event_type is None:
+            statement = SQLStatement(
+                sql=(
+                    "SELECT event_id, actor_user_id, event_type, event_summary, "
+                    "event_payload, created_at "
+                    "FROM audit.audit_events "
+                    "ORDER BY created_at DESC "
+                    "LIMIT %(limit)s"
+                ),
+                params={"limit": limit},
+            )
+        else:
+            statement = SQLStatement(
+                sql=(
+                    "SELECT event_id, actor_user_id, event_type, event_summary, "
+                    "event_payload, created_at "
+                    "FROM audit.audit_events "
+                    "WHERE event_type = %(event_type)s "
+                    "ORDER BY created_at DESC "
+                    "LIMIT %(limit)s"
+                ),
+                params={"event_type": event_type, "limit": limit},
+            )
+        return self.executor.fetch_all(statement)

@@ -36,3 +36,52 @@ class RiskAlertRepository:
         )
         self.executor.execute(statement)
         return statement
+
+    def list_recent_alerts(
+        self,
+        limit: int = 10,
+        status: str | None = None,
+    ) -> list[dict[str, object]]:
+        if status is None:
+            statement = SQLStatement(
+                sql=(
+                    "SELECT alert_id, session_id, message_id, actor_user_id, "
+                    "alert_type, severity, status, summary, details "
+                    "FROM risk.risk_alerts "
+                    "ORDER BY created_at DESC "
+                    "LIMIT %(limit)s"
+                ),
+                params={"limit": limit},
+            )
+        else:
+            statement = SQLStatement(
+                sql=(
+                    "SELECT alert_id, session_id, message_id, actor_user_id, "
+                    "alert_type, severity, status, summary, details "
+                    "FROM risk.risk_alerts "
+                    "WHERE status = %(status)s "
+                    "ORDER BY created_at DESC "
+                    "LIMIT %(limit)s"
+                ),
+                params={"status": status, "limit": limit},
+            )
+        return self.executor.fetch_all(statement)
+
+    def update_alert_status(
+        self,
+        alert_id: str,
+        status: str,
+    ) -> SQLStatement:
+        statement = SQLStatement(
+            sql=(
+                "UPDATE risk.risk_alerts "
+                "SET status = %(status)s "
+                "WHERE alert_id = %(alert_id)s"
+            ),
+            params={
+                "alert_id": alert_id,
+                "status": status,
+            },
+        )
+        self.executor.execute(statement)
+        return statement
