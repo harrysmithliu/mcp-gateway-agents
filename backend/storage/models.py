@@ -51,3 +51,32 @@ class RiskAlertRecord:
     session_id: str | None = None
     message_id: str | None = None
     actor_user_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeDocumentRecord:
+    document_id: str
+    title: str
+    content_type: str
+    access_level: str
+    file_path: str
+    tags: list[str] = field(default_factory=list)
+    jurisdiction: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeChunkRecord:
+    chunk_id: str
+    document_id: str
+    chunk_index: int
+    chunk_text: str
+    chunk_metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class ChunkEmbeddingRecord:
+    chunk_id: str
+    embedding_model_name: str
+    embedding_provider: str
+    vector_dimensions: int
+    embedding: list[float] = field(default_factory=list)

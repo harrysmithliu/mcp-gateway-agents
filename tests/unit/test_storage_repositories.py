@@ -10,12 +10,18 @@ from backend.storage.models import (
     AuditEventRecord,
     ChatMessageRecord,
     ChatSessionRecord,
+    ChunkEmbeddingRecord,
+    KnowledgeChunkRecord,
+    KnowledgeDocumentRecord,
     RiskAlertRecord,
     ToolCallLogRecord,
 )
 from backend.storage.repositories.audit_events import AuditEventRepository
 from backend.storage.repositories.chat_messages import ChatMessageRepository
 from backend.storage.repositories.chat_sessions import ChatSessionRepository
+from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingRepository
+from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
+from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 
@@ -164,5 +170,88 @@ def test_risk_alert_repository_builds_insert_statement() -> None:
         "status": "open",
         "summary": "Escalate wallet review.",
         "details": {"reason": "threshold exceeded"},
+    }
+    assert executor.statements == [statement]
+
+
+def test_knowledge_document_repository_builds_upsert_statement() -> None:
+    executor = FakeExecutor()
+    repository = KnowledgeDocumentRepository(executor=executor)
+
+    statement = repository.create_document(
+        KnowledgeDocumentRecord(
+            document_id="kb-policy-trading-surveillance",
+            title="Trading Surveillance Policy",
+            content_type="text/markdown",
+            access_level="internal",
+            file_path="/tmp/policy.md",
+            tags=["policy", "trading"],
+            jurisdiction="global",
+        )
+    )
+
+    assert "INSERT INTO knowledge.knowledge_documents" in statement.sql
+    assert "ON CONFLICT (document_id) DO UPDATE SET" in statement.sql
+    assert statement.params == {
+        "document_id": "kb-policy-trading-surveillance",
+        "title": "Trading Surveillance Policy",
+        "content_type": "text/markdown",
+        "access_level": "internal",
+        "jurisdiction": "global",
+        "file_path": "/tmp/policy.md",
+        "tags": ["policy", "trading"],
+    }
+    assert executor.statements == [statement]
+
+
+def test_knowledge_chunk_repository_builds_upsert_statement() -> None:
+    executor = FakeExecutor()
+    repository = KnowledgeChunkRepository(executor=executor)
+
+    statement = repository.create_chunk(
+        KnowledgeChunkRecord(
+            chunk_id="kb-policy-trading-surveillance-chunk-0",
+            document_id="kb-policy-trading-surveillance",
+            chunk_index=0,
+            chunk_text="Escalate suspicious trading activity for analyst review.",
+            chunk_metadata={"content_type": "text/markdown"},
+        )
+    )
+
+    assert "INSERT INTO knowledge.knowledge_chunks" in statement.sql
+    assert "ON CONFLICT (chunk_id) DO UPDATE SET" in statement.sql
+    assert statement.params == {
+        "chunk_id": "kb-policy-trading-surveillance-chunk-0",
+        "document_id": "kb-policy-trading-surveillance",
+        "chunk_index": 0,
+        "chunk_text": "Escalate suspicious trading activity for analyst review.",
+        "chunk_metadata": {"content_type": "text/markdown"},
+    }
+    assert executor.statements == [statement]
+
+
+def test_chunk_embedding_repository_builds_upsert_statement() -> None:
+    executor = FakeExecutor()
+    repository = ChunkEmbeddingRepository(executor=executor)
+
+    statement = repository.create_embedding(
+        ChunkEmbeddingRecord(
+            chunk_id="kb-policy-trading-surveillance-chunk-0",
+            embedding_model_name="mock-embedding-model",
+            embedding_provider="mock",
+            vector_dimensions=4,
+            embedding=[0.1, 0.2, 0.3, 0.4],
+        )
+    )
+
+    assert "INSERT INTO knowledge.chunk_embeddings" in statement.sql
+    assert "CAST(%(embedding)s AS vector)" in statement.sql
+    assert "ON CONFLICT (chunk_id) DO UPDATE SET" in statement.sql
+    assert statement.params == {
+        "chunk_id": "kb-policy-trading-surveillance-chunk-0",
+        "embedding_model_name": "mock-embedding-model",
+        "embedding_provider": "mock",
+        "vector_dimensions": 4,
+        "embedding": "[0.10000000000000001,0.20000000000000001,0.29999999999999999,0.40000000000000002]",
     }
     assert executor.statements == [statement]

@@ -16,5 +16,6 @@ def test_build_local_sql_plan_returns_sorted_migrations_and_seeds() -> None:
         "002_create_core_operational_tables.sql",
         "003_create_risk_alerts_table.sql",
         "004_allow_nullable_chat_session_user_id.sql",
+        "005_create_rag_tables.sql",
     ]
     assert [path.name for path in plan.seeds] == ["001_seed_roles.sql"]

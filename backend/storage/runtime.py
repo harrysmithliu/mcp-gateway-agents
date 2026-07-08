@@ -4,6 +4,9 @@ from backend.storage.db import DatabaseClient, DatabaseConfig
 from backend.storage.repositories.audit_events import AuditEventRepository
 from backend.storage.repositories.chat_messages import ChatMessageRepository
 from backend.storage.repositories.chat_sessions import ChatSessionRepository
+from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingRepository
+from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
+from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 from backend.storage.settings import Settings
@@ -20,6 +23,9 @@ class StorageBundle:
     tool_call_log_repository: ToolCallLogRepository
     audit_event_repository: AuditEventRepository
     risk_alert_repository: RiskAlertRepository
+    knowledge_document_repository: KnowledgeDocumentRepository
+    knowledge_chunk_repository: KnowledgeChunkRepository
+    chunk_embedding_repository: ChunkEmbeddingRepository
 
 
 def build_storage_bundle(settings: Settings) -> StorageBundle:
@@ -33,4 +39,7 @@ def build_storage_bundle(settings: Settings) -> StorageBundle:
         tool_call_log_repository=ToolCallLogRepository(executor=database_client),
         audit_event_repository=AuditEventRepository(executor=database_client),
         risk_alert_repository=RiskAlertRepository(executor=database_client),
+        knowledge_document_repository=KnowledgeDocumentRepository(executor=database_client),
+        knowledge_chunk_repository=KnowledgeChunkRepository(executor=database_client),
+        chunk_embedding_repository=ChunkEmbeddingRepository(executor=database_client),
     )

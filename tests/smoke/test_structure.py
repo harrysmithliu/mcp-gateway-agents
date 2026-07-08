@@ -8,6 +8,7 @@ REQUIRED_PATHS = [
     "frontend/app.py",
     "sql/migrations/001_create_core_schemas.sql",
     "sql/migrations/002_create_core_operational_tables.sql",
+    "sql/migrations/005_create_rag_tables.sql",
     "docs/PROJECT_REQUIREMENTS.md",
 ]
 
