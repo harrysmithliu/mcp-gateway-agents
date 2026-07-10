@@ -40,6 +40,10 @@ class PlannerResult:
     selected_tool_names: list[str] = field(default_factory=list)
     used_fallback: bool = False
     fallback_reason: str | None = None
+    planner_mode: str = "legacy_text"
+    model_provider: str | None = None
+    model_name: str | None = None
+    latency_ms: int = 0
 
 
 @dataclass(slots=True)

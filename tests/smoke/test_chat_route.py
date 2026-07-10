@@ -60,6 +60,10 @@ def test_chat_route_returns_structured_response() -> None:
     }
     assert set(payload["planner_result"]) == {
         "planner_source",
+        "planner_mode",
+        "model_provider",
+        "model_name",
+        "latency_ms",
         "raw_output_text",
         "candidate_tool_names",
         "selected_tool_names",

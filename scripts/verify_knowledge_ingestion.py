@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -11,7 +10,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from backend.retrieval.persistence import (
     build_retrieval_persistence_service,
-    run_default_retrieval_persistence,
     run_default_retrieval_persistence_with_runtime,
 )
 from backend.storage.bootstrap import apply_local_sql_plan, build_local_sql_plan

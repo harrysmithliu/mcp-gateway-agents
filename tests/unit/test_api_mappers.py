@@ -108,6 +108,10 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
             selected_tool_names=["knowledge.search"],
             used_fallback=False,
             fallback_reason=None,
+            planner_mode="structured",
+            model_provider="anthropic",
+            model_name="claude-3-5-sonnet",
+            latency_ms=12,
         ),
     )
 
@@ -122,3 +126,7 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
     assert response.citations[0].chunk_id == "chunk-1"
     assert response.planner_result is not None
     assert response.planner_result.planner_source == "langchain_model"
+    assert response.planner_result.planner_mode == "structured"
+    assert response.planner_result.model_provider == "anthropic"
+    assert response.planner_result.model_name == "claude-3-5-sonnet"
+    assert response.planner_result.latency_ms == 12

@@ -17,6 +17,16 @@ def isolate_default_http_knowledge_handler():
 
     registry = app.state.container.tool_registry
     original_handler = registry.handlers.get("knowledge.search")
+    agent_service = app.state.container.agent_service
+    original_retrieval_service = agent_service.retrieval_service
+
+    class PreviewOnlyRetrievalService:
+        def build_context(self, normalized_text, tool_gateway, limit=2):
+            return original_retrieval_service.build_context(
+                normalized_text=normalized_text,
+                tool_gateway=tool_gateway,
+                limit=limit,
+            )
 
     def test_handler(tool_definition, request_payload):
         return ToolInvocationResult(
@@ -34,9 +44,11 @@ def isolate_default_http_knowledge_handler():
         )
 
     registry.handlers["knowledge.search"] = test_handler
+    agent_service.retrieval_service = PreviewOnlyRetrievalService()
     try:
         yield
     finally:
+        agent_service.retrieval_service = original_retrieval_service
         if original_handler is None:
             registry.handlers.pop("knowledge.search", None)
         else:

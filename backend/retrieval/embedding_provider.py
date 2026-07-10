@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Callable
 
 from backend.retrieval.ingestion_models import EmbeddingRequest, EmbeddingResponse
 

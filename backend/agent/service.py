@@ -1,4 +1,8 @@
+import logging
 from dataclasses import dataclass, field
+from time import perf_counter
+
+from pydantic import ValidationError
 
 from backend.agent.models import (
     AgentResponse,
@@ -11,11 +15,15 @@ from backend.agent.planning.langchain import (
     DEFAULT_LANGCHAIN_MODEL_NAME,
     DEFAULT_LANGCHAIN_MODEL_PROVIDER,
     DEFAULT_LANGCHAIN_PLANNER_MODE,
+    LEGACY_TEXT_PLANNER_MODE,
     LANGCHAIN_MODEL_SOURCE,
     PLANNER_OVERRIDE_SOURCE,
     RULE_FALLBACK_SOURCE,
+    STRUCTURED_PLANNER_MODE,
+    StructuredPlannerUnavailableError,
     build_planner_source_evidence,
     init_langchain_chat_model,
+    invoke_structured_planner,
 )
 from backend.agent.planning.parser import (
     extract_langchain_planner_output_candidates,
@@ -34,9 +42,13 @@ from backend.agent.planning.prompt import (
 from backend.agent.ports import ToolGatewayPort
 from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
 from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
+from backend.retrieval.contracts import RetrievalQuery
 from backend.retrieval.service import RetrievalService
 from backend.storage.chat_persistence import ChatPersistenceCoordinator
 from backend.storage.redis_chat_context import RedisChatContextStore
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +217,15 @@ class AgentService:
         normalized_text: str,
         registry: ToolGatewayPort,
     ) -> dict[str, object]:
+        retrieve = getattr(self.retrieval_service, "retrieve", None)
+        if callable(retrieve):
+            try:
+                return retrieve(
+                    RetrievalQuery(text=normalized_text, top_k=2)
+                ).to_payload()
+            except RuntimeError:
+                # Standalone unit tests may use an intentionally unconfigured service.
+                pass
         return self.retrieval_service.build_context(
             normalized_text=normalized_text,
             tool_gateway=registry,
@@ -303,6 +324,7 @@ class AgentService:
         session_id: str | None = None,
         recent_messages: list[ChatHistoryMessage] | None = None,
     ) -> PlannerResult:
+        planner_started_at = perf_counter()
         planner_payload = self.build_langchain_planner_payload(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
@@ -322,6 +344,8 @@ class AgentService:
             if selected_tool_names:
                 return PlannerResult(
                     planner_source=PLANNER_OVERRIDE_SOURCE,
+                    planner_mode="override",
+                    latency_ms=self._build_planner_latency_ms(planner_started_at),
                     raw_output_text=self.planner_override_output,
                     candidate_tool_names=candidate_tool_names,
                     selected_tool_names=selected_tool_names,
@@ -334,26 +358,74 @@ class AgentService:
 
         if planner_model is not None:
             try:
-                planner_response = planner_model.invoke(planner_payload["planner_prompt"])
-                planner_output_text = str(getattr(planner_response, "content", planner_response))
-                candidate_tool_names = self.extract_langchain_planner_output_candidates(
-                    planner_output_text
+                planner_decision = invoke_structured_planner(
+                    planner_model=planner_model,
+                    planner_prompt=planner_payload["planner_prompt"],
                 )
-                selected_tool_names = self.parse_langchain_planner_output(
-                    planner_output_text=planner_output_text,
-                    registry=registry,
+                candidate_tool_names = list(planner_decision.selected_tool_names)
+                selected_tool_names, unknown_tool_names = (
+                    self.parse_structured_planner_decision(
+                        planner_decision=planner_decision,
+                        registry=registry,
+                    )
                 )
-                if selected_tool_names:
+                if selected_tool_names and not unknown_tool_names:
                     return PlannerResult(
                         planner_source=LANGCHAIN_MODEL_SOURCE,
-                        raw_output_text=planner_output_text,
+                        planner_mode=STRUCTURED_PLANNER_MODE,
+                        model_provider=DEFAULT_LANGCHAIN_MODEL_PROVIDER,
+                        model_name=DEFAULT_LANGCHAIN_MODEL_NAME,
+                        latency_ms=self._build_planner_latency_ms(planner_started_at),
+                        raw_output_text=planner_decision.model_dump_json(),
                         candidate_tool_names=candidate_tool_names,
                         selected_tool_names=selected_tool_names,
                     )
 
-                fallback_reason = "langchain_output_unusable"
-                fallback_raw_output_text = planner_output_text
+                fallback_reason = (
+                    "empty_selection"
+                    if not candidate_tool_names
+                    else "invalid_tool_selection"
+                )
+                fallback_raw_output_text = planner_decision.model_dump_json()
                 fallback_candidate_tool_names = candidate_tool_names
+            except StructuredPlannerUnavailableError:
+                try:
+                    planner_response = planner_model.invoke(
+                        planner_payload["planner_prompt"]
+                    )
+                    planner_output_text = str(
+                        getattr(planner_response, "content", planner_response)
+                    )
+                    candidate_tool_names = self.extract_langchain_planner_output_candidates(
+                        planner_output_text
+                    )
+                    selected_tool_names = self.parse_langchain_planner_output(
+                        planner_output_text=planner_output_text,
+                        registry=registry,
+                    )
+                    if selected_tool_names:
+                        return PlannerResult(
+                            planner_source=LANGCHAIN_MODEL_SOURCE,
+                            planner_mode=LEGACY_TEXT_PLANNER_MODE,
+                            model_provider=DEFAULT_LANGCHAIN_MODEL_PROVIDER,
+                            model_name=DEFAULT_LANGCHAIN_MODEL_NAME,
+                            latency_ms=self._build_planner_latency_ms(planner_started_at),
+                            raw_output_text=planner_output_text,
+                            candidate_tool_names=candidate_tool_names,
+                            selected_tool_names=selected_tool_names,
+                        )
+
+                    fallback_reason = "langchain_output_unusable"
+                    fallback_raw_output_text = planner_output_text
+                    fallback_candidate_tool_names = candidate_tool_names
+                except Exception:
+                    fallback_reason = "planner_invoke_failed"
+                    fallback_raw_output_text = None
+                    fallback_candidate_tool_names = []
+            except ValidationError:
+                fallback_reason = "schema_validation_failed"
+                fallback_raw_output_text = None
+                fallback_candidate_tool_names = []
             except Exception:
                 fallback_reason = "planner_invoke_failed"
                 fallback_raw_output_text = None
@@ -366,12 +438,45 @@ class AgentService:
         )
         return PlannerResult(
             planner_source=RULE_FALLBACK_SOURCE,
+            planner_mode=RULE_FALLBACK_SOURCE,
+            model_provider=DEFAULT_LANGCHAIN_MODEL_PROVIDER,
+            model_name=DEFAULT_LANGCHAIN_MODEL_NAME,
+            latency_ms=self._build_planner_latency_ms(planner_started_at),
             raw_output_text=fallback_raw_output_text,
             candidate_tool_names=fallback_candidate_tool_names,
             selected_tool_names=fallback_tool_names,
             used_fallback=True,
             fallback_reason=fallback_reason,
         )
+
+    @staticmethod
+    def _build_planner_latency_ms(started_at: float) -> int:
+        return max(0, round((perf_counter() - started_at) * 1000))
+
+    @staticmethod
+    def parse_structured_planner_decision(
+        planner_decision,
+        registry: ToolGatewayPort,
+    ) -> tuple[list[str], list[str]]:
+        allowed_tool_names_by_lower = {
+            tool_name.lower(): tool_name for tool_name in registry.list_tool_names()
+        }
+        selected_tool_names: list[str] = []
+        unknown_tool_names: list[str] = []
+        seen_tool_names: set[str] = set()
+        for candidate_tool_name in planner_decision.selected_tool_names:
+            normalized_candidate = candidate_tool_name.strip()
+            canonical_tool_name = allowed_tool_names_by_lower.get(
+                normalized_candidate.lower()
+            )
+            if canonical_tool_name is None:
+                unknown_tool_names.append(normalized_candidate)
+                continue
+            if canonical_tool_name in seen_tool_names:
+                continue
+            seen_tool_names.add(canonical_tool_name)
+            selected_tool_names.append(canonical_tool_name)
+        return selected_tool_names, unknown_tool_names
 
     def build_tool_plan_from_names(
         self,
@@ -433,6 +538,18 @@ class AgentService:
             registry=registry,
             session_id=session_id,
             recent_messages=recent_messages,
+        )
+        logger.info(
+            "Planner execution completed",
+            extra={
+                "planner_source": planner_result.planner_source,
+                "planner_mode": planner_result.planner_mode,
+                "model_provider": planner_result.model_provider,
+                "model_name": planner_result.model_name,
+                "latency_ms": planner_result.latency_ms,
+                "fallback_reason": planner_result.fallback_reason,
+                "selected_tool_count": len(planner_result.selected_tool_names),
+            },
         )
 
         if planner_result.used_fallback:

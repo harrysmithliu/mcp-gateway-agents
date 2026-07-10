@@ -37,6 +37,10 @@ class ChatResponse(BaseModel):
 
     class PlannerResultResponse(BaseModel):
         planner_source: str
+        planner_mode: str
+        model_provider: str | None = None
+        model_name: str | None = None
+        latency_ms: int
         raw_output_text: str | None = None
         candidate_tool_names: list[str]
         selected_tool_names: list[str]

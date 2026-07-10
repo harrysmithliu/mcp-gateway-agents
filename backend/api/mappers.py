@@ -74,6 +74,10 @@ def build_chat_response(
         planner_result=(
             ChatResponse.PlannerResultResponse(
                 planner_source=agent_response.planner_result.planner_source,
+                planner_mode=agent_response.planner_result.planner_mode,
+                model_provider=agent_response.planner_result.model_provider,
+                model_name=agent_response.planner_result.model_name,
+                latency_ms=agent_response.planner_result.latency_ms,
                 raw_output_text=agent_response.planner_result.raw_output_text,
                 candidate_tool_names=agent_response.planner_result.candidate_tool_names,
                 selected_tool_names=agent_response.planner_result.selected_tool_names,

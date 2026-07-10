@@ -89,8 +89,14 @@ def build_langchain_retrieval_context_prompt(
     retrieved_chunks = retrieval_context.get("retrieved_chunks", [])
     retrieval_lines = []
     for retrieved_chunk in retrieved_chunks:
+        summary = str(retrieved_chunk.get("summary", ""))[:500]
+        source_path = retrieved_chunk.get("source_path") or "unknown_source"
+        score = retrieved_chunk.get("score")
+        citation_hint = f"source={source_path}"
+        if score is not None:
+            citation_hint += f"; score={score}"
         retrieval_lines.append(
-            f"{retrieved_chunk['title']}: {retrieved_chunk['summary']}"
+            f"{retrieved_chunk.get('title', 'Untitled')}: {summary} ({citation_hint})"
         )
 
     return "Retrieval context: " + " | ".join(retrieval_lines)
