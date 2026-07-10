@@ -6,6 +6,7 @@ from backend.agent.service import AgentService
 from backend.guardrails.policy import GuardrailPolicy
 from backend.mcp_gateway.registry import ToolRegistry, build_default_registry
 from backend.mcp_gateway.sdk_adapter import MCPSDKAdapter
+from backend.retrieval.runtime import build_retrieval_service
 from backend.retrieval.service import RetrievalService
 from backend.services.audit import AuditService
 from backend.services.account_investigation import AccountInvestigationService
@@ -45,7 +46,6 @@ class ApplicationContainer:
 
 def build_application_container() -> ApplicationContainer:
     settings = get_settings()
-    retrieval_service = RetrievalService()
     guardrail_policy = GuardrailPolicy()
     account_domain_service = AccountDomainService()
     knowledge_service = KnowledgeService()
@@ -53,6 +53,10 @@ def build_application_container() -> ApplicationContainer:
     trade_service = TradeService()
     operations_service = OperationsService()
     storage_bundle = build_storage_bundle(settings)
+    retrieval_service = build_retrieval_service(
+        settings=settings,
+        knowledge_search_repository=storage_bundle.knowledge_search_repository,
+    )
     redis_chat_context_store = RedisChatContextStore(redis_url=settings.redis_url)
     chat_persistence_coordinator = ChatPersistenceCoordinator(
         storage_bundle=storage_bundle,
@@ -70,6 +74,7 @@ def build_application_container() -> ApplicationContainer:
             risk_service=risk_service,
             trade_service=trade_service,
             operations_service=operations_service,
+            retrieval_service=retrieval_service,
         ),
         retrieval_service=retrieval_service,
         guardrail_policy=guardrail_policy,

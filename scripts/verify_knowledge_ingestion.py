@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.retrieval.persistence import (
     build_retrieval_persistence_service,
     run_default_retrieval_persistence,
+    run_default_retrieval_persistence_with_runtime,
 )
 from backend.storage.bootstrap import apply_local_sql_plan, build_local_sql_plan
 from backend.storage.db import DatabaseClient, SQLStatement
@@ -89,7 +90,10 @@ def main() -> int:
     try:
         applied_files = apply_local_sql_plan(storage_bundle.database_client, sql_plan)
         service = build_retrieval_persistence_service(storage_bundle)
-        run_result = run_default_retrieval_persistence(service)
+        run_result = run_default_retrieval_persistence_with_runtime(
+            service=service,
+            settings=settings,
+        )
     except Exception as exc:
         raise RuntimeError(
             "Unable to run default knowledge ingestion. Verify PostgreSQL is running, pgvector is enabled, and DATABASE_URL is reachable."
@@ -125,7 +129,7 @@ def main() -> int:
                 "database_url": settings.database_url,
                 "applied_files": applied_files,
                 "document_ids": sorted(document_ids),
-                "embedding_provider": "mock",
+                "embedding_provider": settings.embedding_provider,
                 "embedding_model_name": run_result.batch_result.embedding_model_name,
                 "batch_counts": {
                     "knowledge_documents": run_result.persistence_result.document_count,

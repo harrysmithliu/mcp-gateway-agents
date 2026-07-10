@@ -22,6 +22,7 @@ from backend.storage.repositories.chat_sessions import ChatSessionRepository
 from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingRepository
 from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
+from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 
@@ -32,6 +33,16 @@ class FakeExecutor:
 
     def execute(self, statement: SQLStatement) -> None:
         self.statements.append(statement)
+
+
+class FetchFakeExecutor(FakeExecutor):
+    def __init__(self, rows: list[dict[str, object]]) -> None:
+        super().__init__()
+        self.rows = rows
+
+    def fetch_all(self, statement: SQLStatement) -> list[dict[str, object]]:
+        self.statements.append(statement)
+        return self.rows
 
 
 def test_chat_session_repository_builds_insert_statement() -> None:
@@ -255,3 +266,57 @@ def test_chunk_embedding_repository_builds_upsert_statement() -> None:
         "embedding": "[0.10000000000000001,0.20000000000000001,0.29999999999999999,0.40000000000000002]",
     }
     assert executor.statements == [statement]
+
+
+def test_knowledge_search_repository_builds_pgvector_similarity_query() -> None:
+    executor = FetchFakeExecutor(
+        rows=[
+            {
+                "chunk_id": "chunk-1",
+                "document_id": "doc-1",
+                "title": "Trading Policy",
+                "source_path": "data/knowledge_sources/trading.md",
+                "chunk_index": 2,
+                "chunk_text": "Escalate suspicious activity.",
+                "chunk_metadata": {"topic": "surveillance"},
+                "similarity_score": 0.91,
+            }
+        ]
+    )
+    repository = KnowledgeSearchRepository(executor=executor)
+    from backend.retrieval.contracts import QueryEmbedding, RetrievalQuery
+
+    records = repository.search_similar_chunks(
+        query=RetrievalQuery(
+            text="suspicious activity",
+            top_k=3,
+            access_level="internal",
+            jurisdiction="global",
+            tags=("policy",),
+        ),
+        query_embedding=QueryEmbedding(
+            vector=[0.1, 0.2, 0.3, 0.4],
+            provider="local_sentence_transformer",
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            vector_dimensions=4,
+        ),
+    )
+
+    statement = executor.statements[0]
+    assert "FROM knowledge.chunk_embeddings AS e" in statement.sql
+    assert "JOIN knowledge.knowledge_chunks AS c" in statement.sql
+    assert "JOIN knowledge.knowledge_documents AS d" in statement.sql
+    assert "e.embedding <=> CAST(%(query_embedding)s AS vector)" in statement.sql
+    assert "ORDER BY e.embedding <=>" in statement.sql
+    assert "LIMIT %(top_k)s" in statement.sql
+    assert "d.access_level = %(access_level)s" in statement.sql
+    assert "d.jurisdiction = %(jurisdiction)s" in statement.sql
+    assert "d.tags @> CAST(%(tags)s AS jsonb)" in statement.sql
+    assert statement.params["top_k"] == 3
+    assert statement.params["embedding_provider"] == "local_sentence_transformer"
+    assert statement.params["embedding_model_name"] == (
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
+    assert records[0].chunk_id == "chunk-1"
+    assert records[0].similarity_score == 0.91
+    assert records[0].chunk_metadata == {"topic": "surveillance"}

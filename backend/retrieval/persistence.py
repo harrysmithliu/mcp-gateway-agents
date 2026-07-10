@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+from typing import Callable
 
 from backend.retrieval.ingestion_loader import (
     DEFAULT_EMBEDDING_CONFIG,
     build_default_ingestion_batch_result,
+    build_default_ingestion_batch_result_with_runtime,
 )
 from backend.retrieval.ingestion_models import IngestionBatchResult
+from backend.storage.settings import Settings
 from backend.storage.db import SQLStatement
 from backend.storage.models import (
     ChunkEmbeddingRecord,
@@ -137,9 +140,13 @@ def build_retrieval_persistence_service(
 
 def run_default_retrieval_persistence(
     service: RetrievalPersistenceService,
+    batch_result_builder: Callable[[], IngestionBatchResult] | None = None,
     embedding_provider: str = DEFAULT_EMBEDDING_CONFIG.provider,
 ) -> RetrievalPersistenceRunResult:
-    batch_result = build_default_ingestion_batch_result()
+    batch_result_builder = (
+        batch_result_builder or build_default_ingestion_batch_result
+    )
+    batch_result = batch_result_builder()
     persistence_result = service.persist_batch(
         batch_result=batch_result,
         embedding_provider=embedding_provider,
@@ -147,4 +154,15 @@ def run_default_retrieval_persistence(
     return RetrievalPersistenceRunResult(
         batch_result=batch_result,
         persistence_result=persistence_result,
+    )
+
+
+def run_default_retrieval_persistence_with_runtime(
+    service: RetrievalPersistenceService,
+    settings: Settings,
+) -> RetrievalPersistenceRunResult:
+    return run_default_retrieval_persistence(
+        service=service,
+        batch_result_builder=lambda: build_default_ingestion_batch_result_with_runtime(settings),
+        embedding_provider=settings.embedding_provider,
     )

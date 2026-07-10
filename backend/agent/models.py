@@ -54,6 +54,7 @@ class ChatResult:
     evidence: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
     planner_result: PlannerResult | None = None
+    citations: list[dict[str, object]] = field(default_factory=list)
 
 
 AgentResponse = ChatResult

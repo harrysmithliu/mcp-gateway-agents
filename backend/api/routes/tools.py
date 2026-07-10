@@ -20,10 +20,14 @@ def _invoke_tool(
     tool_name: str,
     query: str,
     registry: ToolRegistry,
+    request_payload: dict[str, object] | None = None,
 ) -> ChatResponse.ToolInvocationResultResponse:
+    payload = {"query": query.strip()}
+    if request_payload:
+        payload.update(request_payload)
     tool_invocation_result = registry.invoke(
         tool_name=tool_name,
-        request_payload={"query": query.strip()},
+        request_payload=payload,
     )
     return build_tool_invocation_result_response(tool_invocation_result)
 
@@ -40,6 +44,12 @@ def knowledge_search(
         tool_name="knowledge.search",
         query=request.query,
         registry=registry,
+        request_payload={
+            "top_k": request.top_k,
+            "access_level": request.access_level,
+            "jurisdiction": request.jurisdiction,
+            "tags": request.tags,
+        },
     )
 
 

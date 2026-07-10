@@ -6,6 +6,7 @@ from backend.mcp_gateway.tools.handlers import (
     ToolInvocationHandler,
     build_default_tool_handlers,
 )
+from backend.retrieval.service import RetrievalService
 from backend.services.knowledge import KnowledgeService
 from backend.services.operations import OperationsService
 from backend.services.risk import RiskService
@@ -109,6 +110,7 @@ def build_default_registry(
     risk_service: RiskService | None = None,
     trade_service: TradeService | None = None,
     operations_service: OperationsService | None = None,
+    retrieval_service: RetrievalService | None = None,
 ) -> ToolRegistry:
     knowledge_service = knowledge_service or KnowledgeService()
     risk_service = risk_service or RiskService()
@@ -123,6 +125,7 @@ def build_default_registry(
         risk_service=risk_service,
         trade_service=trade_service,
         operations_service=operations_service,
+        retrieval_service=retrieval_service,
     )
 
     for tool_definition in DEFAULT_MCP_TOOL_DEFINITIONS:

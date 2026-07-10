@@ -175,6 +175,7 @@ def test_chat_route_preserves_structured_contract_after_command_refactor() -> No
         "tool_invocation_results",
         "evidence",
         "actions",
+        "citations",
         "planner_result",
     }
 

@@ -14,6 +14,15 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    class CitationResponse(BaseModel):
+        document_id: str
+        title: str
+        chunk_id: str | None = None
+        chunk_index: int | None = None
+        source_path: str | None = None
+        score: float | None = None
+        excerpt: str | None = None
+
     class PlannedToolCallResponse(BaseModel):
         tool_name: str
         domain: str
@@ -41,4 +50,5 @@ class ChatResponse(BaseModel):
     tool_invocation_results: list[ToolInvocationResultResponse]
     evidence: list[str]
     actions: list[str]
+    citations: list[CitationResponse] = Field(default_factory=list)
     planner_result: PlannerResultResponse | None = None

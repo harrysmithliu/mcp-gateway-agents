@@ -15,7 +15,9 @@ from backend.retrieval.persistence import (
     RetrievalPersistenceService,
     build_retrieval_persistence_service,
     run_default_retrieval_persistence,
+    run_default_retrieval_persistence_with_runtime,
 )
+from backend.storage.settings import Settings
 from backend.storage.db import SQLStatement
 from backend.storage.models import (
     ChunkEmbeddingRecord,
@@ -229,3 +231,50 @@ def test_run_default_retrieval_persistence_uses_default_batch_and_provider(
     assert run_result.batch_result is batch_result
     assert run_result.persistence_result is service.result
     assert service.calls == [(batch_result, "mock")]
+
+
+def test_run_default_retrieval_persistence_with_runtime_uses_settings_driven_builder(
+    monkeypatch,
+) -> None:
+    batch_result = IngestionBatchResult(
+        chunk_records=[
+            IngestionChunkRecord(
+                chunk_id="chunk-1",
+                source_id="source-1",
+                title="Doc 1",
+                chunk_index=0,
+                text="Chunk text",
+                metadata={"access_level": "internal"},
+            )
+        ],
+        vector_records=[
+            VectorDocumentRecord(
+                chunk_id="chunk-1",
+                source_id="source-1",
+                title="Doc 1",
+                text="Chunk text",
+                embedding=[0.1, 0.2, 0.3],
+                metadata={"access_level": "internal"},
+            )
+        ],
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        chunk_count=1,
+        vector_count=1,
+    )
+    service = FakePlannerlessPersistenceService()
+    settings = Settings(
+        embedding_provider="local_sentence_transformer",
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dimensions=384,
+    )
+
+    monkeypatch.setattr(
+        "backend.retrieval.persistence.build_default_ingestion_batch_result_with_runtime",
+        lambda runtime_settings: batch_result,
+    )
+
+    run_result = run_default_retrieval_persistence_with_runtime(service, settings)
+
+    assert run_result.batch_result is batch_result
+    assert run_result.persistence_result is service.result
+    assert service.calls == [(batch_result, "local_sentence_transformer")]

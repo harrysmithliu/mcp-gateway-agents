@@ -80,3 +80,17 @@ class ChunkEmbeddingRecord:
     embedding_provider: str
     vector_dimensions: int
     embedding: list[float] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeSearchRecord:
+    """One database row returned by the pgvector similarity repository."""
+
+    chunk_id: str
+    document_id: str
+    title: str
+    source_path: str
+    chunk_index: int
+    chunk_text: str
+    chunk_metadata: dict[str, object] = field(default_factory=dict)
+    similarity_score: float = 0.0

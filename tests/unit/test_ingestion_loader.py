@@ -4,8 +4,10 @@ from backend.retrieval.embedding_provider import MockEmbeddingProvider
 from backend.retrieval.ingestion_loader import (
     DEFAULT_CHUNKING_CONFIG,
     build_default_ingestion_batch_result,
+    build_default_ingestion_batch_result_with_runtime,
     build_default_ingestion_chunks,
     build_default_vector_documents,
+    build_default_vector_documents_with_runtime,
     build_embedding_request,
     build_vector_document_record,
     build_vector_document_records,
@@ -15,6 +17,7 @@ from backend.retrieval.ingestion_loader import (
 )
 from backend.retrieval.ingestion_manifest import DEFAULT_INGESTION_DOCUMENTS
 from backend.retrieval.ingestion_models import ChunkingConfig, EmbeddingConfig, EmbeddingResponse, IngestionChunkRecord
+from backend.storage.settings import Settings
 
 
 def test_chunk_text_returns_chunks_for_paragraph_input() -> None:
@@ -314,3 +317,116 @@ def test_build_default_ingestion_batch_result_returns_full_batch_result() -> Non
     assert batch_result.vector_count == len(batch_result.vector_records)
     assert all(record.text.strip() for record in batch_result.chunk_records)
     assert all(len(record.embedding) == 4 for record in batch_result.vector_records)
+
+
+def test_build_default_vector_documents_with_runtime_uses_configured_provider(
+    monkeypatch,
+) -> None:
+    settings = Settings(
+        embedding_provider="local_sentence_transformer",
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dimensions=384,
+    )
+    captured_calls: list[tuple[EmbeddingConfig, object]] = []
+    expected_records = [
+        build_vector_document_record(
+            chunk_record=build_default_ingestion_chunks()[0],
+            embedding=[0.1, 0.2, 0.3],
+        )
+    ]
+
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_embedding_config",
+        lambda runtime_settings: EmbeddingConfig(
+            provider=runtime_settings.embedding_provider,
+            model_name=runtime_settings.embedding_model_name,
+            vector_dimensions=runtime_settings.embedding_dimensions,
+        ),
+    )
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_embedding_provider",
+        lambda runtime_settings: {"provider": runtime_settings.embedding_provider},
+    )
+
+    def fake_build_vector_documents_with_provider(
+        chunk_records: list[IngestionChunkRecord],
+        embedding_config: EmbeddingConfig,
+        embedding_provider: object,
+    ) -> list[object]:
+        captured_calls.append((embedding_config, embedding_provider))
+        assert chunk_records
+        return expected_records
+
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_vector_documents_with_provider",
+        fake_build_vector_documents_with_provider,
+    )
+
+    vector_records = build_default_vector_documents_with_runtime(settings)
+
+    assert vector_records == expected_records
+    assert captured_calls == [
+        (
+            EmbeddingConfig(
+                provider="local_sentence_transformer",
+                model_name="sentence-transformers/all-MiniLM-L6-v2",
+                vector_dimensions=384,
+            ),
+            {"provider": "local_sentence_transformer"},
+        )
+    ]
+
+
+def test_build_default_ingestion_batch_result_with_runtime_uses_runtime_embedding_config(
+    monkeypatch,
+) -> None:
+    settings = Settings(
+        embedding_provider="local_sentence_transformer",
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dimensions=384,
+    )
+    chunk_records = [
+        IngestionChunkRecord(
+            chunk_id="chunk-1",
+            source_id="source-1",
+            title="Doc 1",
+            chunk_index=0,
+            text="Chunk text",
+            metadata={"access_level": "internal"},
+        )
+    ]
+    vector_records = [
+        build_vector_document_record(
+            chunk_record=chunk_records[0],
+            embedding=[0.1, 0.2, 0.3],
+        )
+    ]
+
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_default_ingestion_chunks",
+        lambda: chunk_records,
+    )
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_embedding_config",
+        lambda runtime_settings: EmbeddingConfig(
+            provider=runtime_settings.embedding_provider,
+            model_name=runtime_settings.embedding_model_name,
+            vector_dimensions=runtime_settings.embedding_dimensions,
+        ),
+    )
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_embedding_provider",
+        lambda runtime_settings: {"provider": runtime_settings.embedding_provider},
+    )
+    monkeypatch.setattr(
+        "backend.retrieval.ingestion_loader.build_vector_documents_with_provider",
+        lambda chunk_records, embedding_config, embedding_provider: vector_records,
+    )
+
+    batch_result = build_default_ingestion_batch_result_with_runtime(settings)
+
+    assert batch_result.chunk_records == chunk_records
+    assert batch_result.vector_records == vector_records
+    assert batch_result.embedding_model_name == "sentence-transformers/all-MiniLM-L6-v2"
+    assert batch_result.chunk_count == 1
+    assert batch_result.vector_count == 1

@@ -32,6 +32,7 @@ def test_chat_route_returns_structured_response() -> None:
         "tool_invocation_results",
         "evidence",
         "actions",
+        "citations",
         "planner_result",
     }
     assert isinstance(payload["session_id"], str)
@@ -41,6 +42,7 @@ def test_chat_route_returns_structured_response() -> None:
     assert isinstance(payload["tool_invocation_results"], list)
     assert isinstance(payload["evidence"], list)
     assert isinstance(payload["actions"], list)
+    assert isinstance(payload["citations"], list)
     assert isinstance(payload["planner_result"], dict)
 
     assert payload["planned_tool_calls"]

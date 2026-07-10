@@ -90,6 +90,17 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
         ],
         evidence=["initial evidence"],
         actions=["draft review"],
+        citations=[
+            {
+                "document_id": "doc-1",
+                "title": "Trading Policy",
+                "chunk_id": "chunk-1",
+                "chunk_index": 2,
+                "source_path": "data/trading.md",
+                "score": 0.91,
+                "excerpt": "Escalate suspicious activity.",
+            }
+        ],
         planner_result=PlannerResult(
             planner_source="langchain_model",
             raw_output_text="knowledge.search",
@@ -108,5 +119,6 @@ def test_build_chat_response_adds_registry_notes_and_planner_result() -> None:
     assert response.evidence[0] == "initial evidence"
     assert any("Matched tool [knowledge]" in note for note in response.evidence)
     assert response.evidence[-1].startswith("Registered MCP tools:")
+    assert response.citations[0].chunk_id == "chunk-1"
     assert response.planner_result is not None
     assert response.planner_result.planner_source == "langchain_model"

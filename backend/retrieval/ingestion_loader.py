@@ -12,6 +12,8 @@ from backend.retrieval.ingestion_models import (
     KnowledgeSourceDocument,
     VectorDocumentRecord,
 )
+from backend.retrieval.runtime import build_embedding_config, build_embedding_provider
+from backend.storage.settings import Settings
 
 
 def load_source_text(document: KnowledgeSourceDocument) -> str:
@@ -29,7 +31,7 @@ def chunk_text(
     paragraphs = [part.strip() for part in text.split("\n\n") if part.strip()]
     if not paragraphs:
         return []
-    
+
     chunks: list[str] = []
     current_chunk = ""
 
@@ -163,10 +165,10 @@ def build_vector_documents_from_embedding_response(
 def build_vector_documents_with_provider(
     chunk_records: list[IngestionChunkRecord],
     embedding_config: EmbeddingConfig,
-    embedding_provider: EmbeddingProvider
+    embedding_provider: EmbeddingProvider,
 ) -> list[VectorDocumentRecord]:
     """Builds vector-ready document records by running one embedding provider call."""
-    
+
     embedding_request = build_embedding_request(
         chunk_records=chunk_records,
         embedding_config=embedding_config,
@@ -176,7 +178,7 @@ def build_vector_documents_with_provider(
 
     return build_vector_documents_from_embedding_response(
         chunk_records=chunk_records,
-        embedding_response=embedding_response
+        embedding_response=embedding_response,
     )
 
 
@@ -213,6 +215,42 @@ def build_default_ingestion_batch_result() -> IngestionBatchResult:
         chunk_records=chunk_records,
         vector_records=vector_records,
         embedding_model_name=DEFAULT_EMBEDDING_CONFIG.model_name,
+        chunk_count=len(chunk_records),
+        vector_count=len(vector_records),
+    )
+
+
+def build_default_vector_documents_with_runtime(
+    settings: Settings,
+) -> list[VectorDocumentRecord]:
+    """Builds vector-ready documents using the configured runtime embedding provider."""
+
+    chunk_records = build_default_ingestion_chunks()
+
+    return build_vector_documents_with_provider(
+        chunk_records=chunk_records,
+        embedding_config=build_embedding_config(settings),
+        embedding_provider=build_embedding_provider(settings),
+    )
+
+
+def build_default_ingestion_batch_result_with_runtime(
+    settings: Settings,
+) -> IngestionBatchResult:
+    """Builds the default ingestion batch result with the configured runtime provider."""
+
+    chunk_records = build_default_ingestion_chunks()
+    embedding_config = build_embedding_config(settings)
+    vector_records = build_vector_documents_with_provider(
+        chunk_records=chunk_records,
+        embedding_config=embedding_config,
+        embedding_provider=build_embedding_provider(settings),
+    )
+
+    return IngestionBatchResult(
+        chunk_records=chunk_records,
+        vector_records=vector_records,
+        embedding_model_name=embedding_config.model_name,
         chunk_count=len(chunk_records),
         vector_count=len(vector_records),
     )

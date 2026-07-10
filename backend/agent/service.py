@@ -519,6 +519,12 @@ class AgentService:
         actions: list[str],
         planner_result: PlannerResult | None = None,
     ) -> AgentResponse:
+        citations = self._extract_retrieval_citations(tool_invocation_results)
+        response_evidence = list(evidence)
+        if citations:
+            response_evidence.append(
+                f"Evidence grounded by {len(citations)} knowledge citation(s)."
+            )
         return AgentResponse(
             reply_text=(
                 f"Prepared a placeholder agent response for the {normalized_role or 'unknown'} "
@@ -529,10 +535,51 @@ class AgentService:
             tool_names=tool_names,
             planned_tool_calls=planned_tool_calls,
             tool_invocation_results=tool_invocation_results,
-            evidence=evidence,
+            evidence=response_evidence,
             actions=actions,
             planner_result=planner_result,
+            citations=citations,
         )
+
+    @staticmethod
+    def _extract_retrieval_citations(
+        tool_invocation_results: list[ToolInvocationResult],
+    ) -> list[dict[str, object]]:
+        citations: list[dict[str, object]] = []
+        seen_citations: set[tuple[object, ...]] = set()
+        for result in tool_invocation_results:
+            if result.tool_name != "knowledge.search":
+                continue
+            raw_citations = result.response_payload.get("citations")
+            if not isinstance(raw_citations, list):
+                continue
+            for raw_citation in raw_citations:
+                if not isinstance(raw_citation, dict):
+                    continue
+                document_id = raw_citation.get("document_id")
+                title = raw_citation.get("title")
+                if not isinstance(document_id, str) or not isinstance(title, str):
+                    continue
+                citation = {
+                    "document_id": document_id,
+                    "title": title,
+                    "chunk_id": raw_citation.get("chunk_id"),
+                    "chunk_index": raw_citation.get("chunk_index"),
+                    "source_path": raw_citation.get("source_path"),
+                    "score": raw_citation.get("score"),
+                    "excerpt": raw_citation.get("excerpt"),
+                }
+                citation_key = (
+                    citation["document_id"],
+                    citation["chunk_id"],
+                    citation["source_path"],
+                    citation["chunk_index"],
+                )
+                if citation_key in seen_citations:
+                    continue
+                seen_citations.add(citation_key)
+                citations.append(citation)
+        return citations
 
     def handle_command(
         self,

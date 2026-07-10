@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 from backend.retrieval.ingestion_models import EmbeddingRequest, EmbeddingResponse
 
@@ -25,6 +26,58 @@ class MockEmbeddingProvider(EmbeddingProvider):
 
         return EmbeddingResponse(
             vectors=vectors,
+            model_name=request.config.model_name,
+        )
+
+
+@dataclass(slots=True)
+class LocalSentenceTransformerEmbeddingProvider(EmbeddingProvider):
+    """Loads a local sentence-transformers model and embeds texts on demand."""
+
+    model_name: str
+    device: str = "cpu"
+    normalize_embeddings: bool = True
+    sentence_transformer_factory: Callable[..., object] | None = None
+    _model: object | None = field(default=None, init=False, repr=False)
+
+    def _build_sentence_transformer_factory(self) -> Callable[..., object]:
+        if self.sentence_transformer_factory is not None:
+            return self.sentence_transformer_factory
+
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise RuntimeError(
+                "sentence-transformers is required for local embedding runtime."
+            ) from exc
+        return SentenceTransformer
+
+    def _get_model(self) -> object:
+        if self._model is None:
+            sentence_transformer_factory = self._build_sentence_transformer_factory()
+            try:
+                self._model = sentence_transformer_factory(
+                    self.model_name,
+                    device=self.device,
+                )
+            except ImportError as exc:
+                raise RuntimeError(
+                    "sentence-transformers is required for local embedding runtime."
+                ) from exc
+        return self._model
+
+    def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        model = self._get_model()
+        vectors = model.encode(
+            request.texts,
+            normalize_embeddings=self.normalize_embeddings,
+        )
+
+        return EmbeddingResponse(
+            vectors=[
+                [float(value) for value in vector]
+                for vector in vectors
+            ],
             model_name=request.config.model_name,
         )
 

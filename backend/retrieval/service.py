@@ -1,50 +1,136 @@
-from dataclasses import asdict, dataclass, field
+import logging
+from dataclasses import dataclass
+from time import perf_counter
 from typing import TYPE_CHECKING
+
+from backend.retrieval.contracts import (
+    RetrievalQuery,
+    RetrievalChunk,
+    RetrievalCitation,
+    RetrievalContext,
+    RetrievalMetadata,
+)
+from backend.retrieval.embedding_provider import EmbeddingProvider
+from backend.retrieval.ingestion_models import EmbeddingConfig
+from backend.retrieval.query import embed_query
+from backend.storage.models import KnowledgeSearchRecord
+from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 
 if TYPE_CHECKING:
     from backend.agent.ports import ToolGatewayPort
 
 
-@dataclass(frozen=True, slots=True)
-class RetrievalChunk:
-    document_id: str
-    title: str
-    summary: str
-    matched_terms: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True, slots=True)
-class RetrievalCitation:
-    document_id: str
-    title: str
-
-
-@dataclass(frozen=True, slots=True)
-class RetrievalContext:
-    rag_enabled: bool
-    retrieval_source: str
-    retrieved_chunks: list[RetrievalChunk] = field(default_factory=list)
-    citations: list[RetrievalCitation] = field(default_factory=list)
-
-    def to_payload(self) -> dict[str, object]:
-        return {
-            "rag_enabled": self.rag_enabled,
-            "retrieval_source": self.retrieval_source,
-            "retrieved_chunks": [asdict(chunk) for chunk in self.retrieved_chunks],
-            "citations": [asdict(citation) for citation in self.citations],
-        }
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
 class RetrievalService:
-    """Placeholder for document chunking and vector retrieval."""
+    """Orchestrates query embedding, vector search, and citation mapping."""
 
     vector_backend: str = "postgresql-pgvector"
+    embedding_config: EmbeddingConfig | None = None
+    embedding_provider: EmbeddingProvider | None = None
+    knowledge_search_repository: KnowledgeSearchRepository | None = None
 
     def describe(self) -> str:
-        return (
-            "Placeholder retrieval service. "
-            "Chunking, embedding persistence, and vector search will be added in later batches."
+        return "Retrieval service backed by configured embeddings and PostgreSQL/pgvector."
+
+    def retrieve(self, query: RetrievalQuery) -> RetrievalContext:
+        """Run one configured vector search and map rows into RAG contracts."""
+
+        started_at = perf_counter()
+        if (
+            self.embedding_config is None
+            or self.embedding_provider is None
+            or self.knowledge_search_repository is None
+        ):
+            raise RuntimeError("RetrievalService runtime is not configured.")
+
+        try:
+            query_embedding = embed_query(
+                query=query,
+                embedding_config=self.embedding_config,
+                embedding_provider=self.embedding_provider,
+            )
+            records = self.knowledge_search_repository.search_similar_chunks(
+                query=query,
+                query_embedding=query_embedding,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Knowledge retrieval failed",
+                extra={
+                    "retrieval_source": "postgresql_pgvector",
+                    "top_k": query.top_k,
+                },
+            )
+            return RetrievalContext(
+                rag_enabled=False,
+                retrieval_source="postgresql_pgvector",
+                metadata=RetrievalMetadata(
+                    top_k=query.top_k,
+                    filters=self._build_filter_payload(query),
+                    status="failed",
+                    latency_ms=self._build_latency_ms(started_at),
+                    failure_reason=type(exc).__name__,
+                ),
+            )
+
+        return RetrievalContext(
+            rag_enabled=bool(records),
+            retrieval_source="postgresql_pgvector",
+            retrieved_chunks=[self._build_retrieval_chunk(record) for record in records],
+            citations=[self._build_retrieval_citation(record) for record in records],
+            metadata=RetrievalMetadata(
+                provider=query_embedding.provider,
+                model_name=query_embedding.model_name,
+                vector_dimensions=query_embedding.vector_dimensions,
+                top_k=query.top_k,
+                result_count=len(records),
+                filters=self._build_filter_payload(query),
+                status="completed" if records else "empty",
+                latency_ms=self._build_latency_ms(started_at),
+            ),
+        )
+
+    @staticmethod
+    def _build_latency_ms(started_at: float) -> int:
+        return max(0, round((perf_counter() - started_at) * 1000))
+
+    @staticmethod
+    def _build_filter_payload(query: RetrievalQuery) -> dict[str, object]:
+        filters: dict[str, object] = {}
+        if query.access_level is not None:
+            filters["access_level"] = query.access_level
+        if query.jurisdiction is not None:
+            filters["jurisdiction"] = query.jurisdiction
+        if query.tags:
+            filters["tags"] = list(query.tags)
+        return filters
+
+    @staticmethod
+    def _build_retrieval_chunk(record: KnowledgeSearchRecord) -> RetrievalChunk:
+        return RetrievalChunk(
+            document_id=record.document_id,
+            title=record.title,
+            summary=record.chunk_text,
+            chunk_id=record.chunk_id,
+            chunk_index=record.chunk_index,
+            source_path=record.source_path,
+            score=record.similarity_score,
+            metadata=record.chunk_metadata,
+        )
+
+    @staticmethod
+    def _build_retrieval_citation(record: KnowledgeSearchRecord) -> RetrievalCitation:
+        return RetrievalCitation(
+            document_id=record.document_id,
+            title=record.title,
+            chunk_id=record.chunk_id,
+            chunk_index=record.chunk_index,
+            source_path=record.source_path,
+            score=record.similarity_score,
+            excerpt=record.chunk_text,
         )
 
     def build_context(

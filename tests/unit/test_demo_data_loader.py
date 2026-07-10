@@ -12,7 +12,7 @@ def test_load_demo_dataset_returns_expected_trade_records() -> None:
     trade_records = load_demo_dataset("trade")
 
     assert len(trade_records) == 3
-    assert trade_records[0]["snapshot_id"] == "trade-snapshot-alpha"
+    assert trade_records[0]["snapshot_id"] == "trade-snapshot-atlas"
     assert trade_records[-1]["wallet_id"] == "wallet-gamma-88"
 
 
@@ -21,6 +21,6 @@ def test_build_demo_seed_summary_reports_all_demo_datasets() -> None:
 
     assert summary["demo_data_dir"] == "data/demo"
     datasets = summary["datasets"]
-    assert set(datasets) == {"knowledge", "operations", "risk", "trade"}
+    assert set(datasets) == {"accounts", "knowledge", "operations", "risk", "trade"}
     assert datasets["knowledge"]["record_count"] >= 1
     assert datasets["trade"]["path"] == "data/demo/trade_metrics_snapshots.json"

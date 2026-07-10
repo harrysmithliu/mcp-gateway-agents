@@ -30,6 +30,7 @@ class EmbeddingConfig:
     provider: str
     model_name: str
     vector_dimensions: int
+    query_prefix: str = ""
 
 
 @dataclass(frozen=True, slots=True)

@@ -67,6 +67,10 @@ def build_chat_response(
         ],
         evidence=evidence,
         actions=agent_response.actions,
+        citations=[
+            ChatResponse.CitationResponse(**citation)
+            for citation in agent_response.citations
+        ],
         planner_result=(
             ChatResponse.PlannerResultResponse(
                 planner_source=agent_response.planner_result.planner_source,
