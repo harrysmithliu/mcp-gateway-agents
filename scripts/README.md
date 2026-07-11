@@ -12,3 +12,5 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Applies the local SQL plan, ingests the default knowledge source set into PostgreSQL/pgvector, and prints a JSON report that verifies persisted documents, chunks, and embeddings.
 - `python3 scripts/verify_local_e2e.py`
   Uses the frontend HTTP client seam against a live local backend, then checks PostgreSQL and Redis to verify a real persisted chat session, messages, tool logs, audit events, and operational alert records.
+- `uv run --env-file .env --no-sync python scripts/verify_anthropic_planner.py`
+  Performs exactly one live Anthropic structured-planner request and prints only safe planner metadata; it does not retry or use the legacy fallback path.

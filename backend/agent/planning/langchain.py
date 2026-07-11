@@ -1,10 +1,17 @@
+import os
 from typing import Any
 
 from backend.agent.planning.contracts import PlannerDecision
 
 
-DEFAULT_LANGCHAIN_MODEL_PROVIDER = "anthropic"
-DEFAULT_LANGCHAIN_MODEL_NAME = "claude-3-5-sonnet"
+DEFAULT_LANGCHAIN_MODEL_PROVIDER = os.getenv(
+    "LANGCHAIN_MODEL_PROVIDER",
+    "anthropic",
+)
+DEFAULT_LANGCHAIN_MODEL_NAME = os.getenv(
+    "LANGCHAIN_MODEL_NAME",
+    "claude-haiku-4-5",
+)
 DEFAULT_LANGCHAIN_PLANNER_MODE = "tool-routing-placeholder"
 PLANNER_OVERRIDE_SOURCE = "planner_override"
 LANGCHAIN_MODEL_SOURCE = "langchain_model"

@@ -37,7 +37,7 @@ def test_structured_planner_success_returns_canonical_tool_names(monkeypatch) ->
     assert result.planner_source == "langchain_model"
     assert result.planner_mode == "structured"
     assert result.model_provider == "anthropic"
-    assert result.model_name == "claude-3-5-sonnet"
+    assert result.model_name == "claude-haiku-4-5"
     assert result.latency_ms >= 0
     assert result.selected_tool_names == ["knowledge.search"]
     assert result.used_fallback is False

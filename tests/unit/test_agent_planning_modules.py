@@ -53,7 +53,7 @@ def test_prompt_builders_preserve_message_history_and_context_fields() -> None:
     planner_config = LangChainPlannerConfig(
         package_name="langchain",
         model_provider="anthropic",
-        model_name="claude-3-5-sonnet",
+        model_name="claude-haiku-4-5",
         planner_mode="tool-routing-placeholder",
     )
     message_history = build_langchain_message_history_payload(
