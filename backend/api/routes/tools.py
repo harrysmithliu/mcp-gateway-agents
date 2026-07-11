@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from backend.agent.ports import ToolGatewayPort
 from backend.api.dependencies import get_tool_registry
 from backend.api.mappers import build_tool_invocation_result_response
 from backend.api.schemas.chat import ChatResponse
@@ -11,7 +12,6 @@ from backend.api.schemas.tools import (
     RiskScoreAccountRequest,
     TradeQueryMetricsRequest,
 )
-from backend.mcp_gateway.registry import ToolRegistry
 
 router = APIRouter(tags=["tools"])
 
@@ -19,7 +19,7 @@ router = APIRouter(tags=["tools"])
 def _invoke_tool(
     tool_name: str,
     query: str,
-    registry: ToolRegistry,
+    registry: ToolGatewayPort,
     request_payload: dict[str, object] | None = None,
 ) -> ChatResponse.ToolInvocationResultResponse:
     payload = {"query": query.strip()}
@@ -38,7 +38,7 @@ def _invoke_tool(
 )
 def knowledge_search(
     request: KnowledgeSearchRequest,
-    registry: Annotated[ToolRegistry, Depends(get_tool_registry)],
+    registry: Annotated[ToolGatewayPort, Depends(get_tool_registry)],
 ) -> ChatResponse.ToolInvocationResultResponse:
     return _invoke_tool(
         tool_name="knowledge.search",
@@ -59,7 +59,7 @@ def knowledge_search(
 )
 def risk_score_account(
     request: RiskScoreAccountRequest,
-    registry: Annotated[ToolRegistry, Depends(get_tool_registry)],
+    registry: Annotated[ToolGatewayPort, Depends(get_tool_registry)],
 ) -> ChatResponse.ToolInvocationResultResponse:
     return _invoke_tool(
         tool_name="risk.score_account",
@@ -74,7 +74,7 @@ def risk_score_account(
 )
 def trade_query_metrics(
     request: TradeQueryMetricsRequest,
-    registry: Annotated[ToolRegistry, Depends(get_tool_registry)],
+    registry: Annotated[ToolGatewayPort, Depends(get_tool_registry)],
 ) -> ChatResponse.ToolInvocationResultResponse:
     return _invoke_tool(
         tool_name="trade.query_metrics",
@@ -89,7 +89,7 @@ def trade_query_metrics(
 )
 def ops_create_alert_or_action(
     request: OpsCreateAlertOrActionRequest,
-    registry: Annotated[ToolRegistry, Depends(get_tool_registry)],
+    registry: Annotated[ToolGatewayPort, Depends(get_tool_registry)],
 ) -> ChatResponse.ToolInvocationResultResponse:
     return _invoke_tool(
         tool_name="ops.create_alert_or_action",

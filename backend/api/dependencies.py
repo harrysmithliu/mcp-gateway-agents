@@ -4,8 +4,10 @@ from fastapi import Request
 
 from backend.agent.service import AgentService
 from backend.guardrails.policy import GuardrailPolicy
-from backend.mcp_gateway.registry import ToolRegistry, build_default_registry
+from backend.agent.ports import ToolGatewayPort
+from backend.mcp_gateway.registry import build_default_registry
 from backend.mcp_gateway.sdk_adapter import MCPSDKAdapter
+from backend.mcp_gateway.transport import build_mcp_transport_router
 from backend.retrieval.runtime import build_retrieval_service
 from backend.retrieval.service import RetrievalService
 from backend.services.audit import AuditService
@@ -27,7 +29,7 @@ class ApplicationContainer:
     """App-level dependency container for the current runnable backend."""
 
     agent_service: AgentService
-    tool_registry: ToolRegistry
+    tool_registry: ToolGatewayPort
     retrieval_service: RetrievalService
     guardrail_policy: GuardrailPolicy
     account_domain_service: AccountDomainService
@@ -62,6 +64,18 @@ def build_application_container() -> ApplicationContainer:
         storage_bundle=storage_bundle,
         redis_chat_context_store=redis_chat_context_store,
     )
+    base_registry = build_default_registry(
+        knowledge_service=knowledge_service,
+        risk_service=risk_service,
+        trade_service=trade_service,
+        operations_service=operations_service,
+        retrieval_service=retrieval_service,
+    )
+    tool_gateway = build_mcp_transport_router(
+        registry=base_registry,
+        transport_mode=settings.mcp_transport_mode,
+        server_runtime=settings.mcp_server_runtime,
+    )
     return ApplicationContainer(
         agent_service=AgentService(
             retrieval_service=retrieval_service,
@@ -69,13 +83,7 @@ def build_application_container() -> ApplicationContainer:
             chat_persistence_coordinator=chat_persistence_coordinator,
             redis_chat_context_store=redis_chat_context_store,
         ),
-        tool_registry=build_default_registry(
-            knowledge_service=knowledge_service,
-            risk_service=risk_service,
-            trade_service=trade_service,
-            operations_service=operations_service,
-            retrieval_service=retrieval_service,
-        ),
+        tool_registry=tool_gateway,
         retrieval_service=retrieval_service,
         guardrail_policy=guardrail_policy,
         account_domain_service=account_domain_service,
@@ -86,7 +94,10 @@ def build_application_container() -> ApplicationContainer:
         ),
         audit_service=AuditService(storage_bundle=storage_bundle),
         ops_workflow_service=OpsWorkflowService(storage_bundle=storage_bundle),
-        mcp_sdk_adapter=MCPSDKAdapter(),
+        mcp_sdk_adapter=MCPSDKAdapter(
+            transport_mode=settings.mcp_transport_mode,
+            server_runtime=settings.mcp_server_runtime,
+        ),
         knowledge_service=knowledge_service,
         risk_service=risk_service,
         trade_service=trade_service,
@@ -108,7 +119,7 @@ def get_agent_service(request: Request) -> AgentService:
     return get_application_container(request).agent_service
 
 
-def get_tool_registry(request: Request) -> ToolRegistry:
+def get_tool_registry(request: Request) -> ToolGatewayPort:
     return get_application_container(request).tool_registry
 
 

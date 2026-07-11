@@ -1,4 +1,5 @@
 from backend.agent.models import AgentResponse, ChatCommand, ChatHistoryMessage
+from backend.agent.ports import ToolGatewayPort
 from backend.api.schemas.chat import ChatRequest, ChatResponse
 from backend.mcp_gateway.models import ToolInvocationResult
 from backend.mcp_gateway.registry import ToolRegistry
@@ -33,7 +34,7 @@ def build_tool_invocation_result_response(
 
 def build_chat_response(
     agent_response: AgentResponse,
-    registry: ToolRegistry,
+    registry: ToolGatewayPort,
 ) -> ChatResponse:
     evidence = list(agent_response.evidence)
     matched_tool_notes: list[str] = []

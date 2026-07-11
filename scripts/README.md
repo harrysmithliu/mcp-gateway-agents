@@ -14,3 +14,5 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Uses the frontend HTTP client seam against a live local backend, then checks PostgreSQL and Redis to verify a real persisted chat session, messages, tool logs, audit events, and operational alert records.
 - `uv run --env-file .env --no-sync python scripts/verify_anthropic_planner.py`
   Performs exactly one live Anthropic structured-planner request and prints only safe planner metadata; it does not retry or use the legacy fallback path.
+- `uv run --no-sync python scripts/verify_mcp_transport.py`
+  Runs one local `sdk_stdio` knowledge tool call and prints safe transport metadata; set `MCP_SERVER_RUNTIME=runtime` to use the configured retrieval runtime.

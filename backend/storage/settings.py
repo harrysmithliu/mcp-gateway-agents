@@ -31,6 +31,8 @@ class Settings:
     ).lower() in {"1", "true", "yes", "on"}
     embedding_query_prefix: str = os.getenv("EMBEDDING_QUERY_PREFIX", "")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    mcp_transport_mode: str = os.getenv("MCP_TRANSPORT_MODE", "registry")
+    mcp_server_runtime: str = os.getenv("MCP_SERVER_RUNTIME", "preview")
     upstream_trade_project: str = os.getenv("UPSTREAM_TRADE_PROJECT", "")
     upstream_risk_project: str = os.getenv("UPSTREAM_RISK_PROJECT", "")
 
