@@ -21,6 +21,7 @@ def test_build_local_sql_plan_returns_sorted_migrations_and_seeds() -> None:
         "007_create_risk_batch_score_tables.sql",
         "008_create_risk_alert_status_events.sql",
         "009_create_auth_tables.sql",
+        "010_create_risk_alert_approvals.sql",
     ]
     assert [path.name for path in plan.seeds] == [
         "001_seed_roles.sql",

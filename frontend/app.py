@@ -13,9 +13,13 @@ from frontend.services.chat import (
 )
 from frontend.services.session import (
     ROLE_OPTIONS,
+    clear_auth_session,
     get_active_chat_session_id,
     get_active_role,
+    get_auth_roles,
     get_auth_token,
+    get_auth_user,
+    set_auth_identity,
     set_auth_token,
     set_active_chat_session_id,
     set_active_role,
@@ -43,6 +47,14 @@ with st.sidebar:
                 api_base_url=DEFAULT_API_BASE_URL,
             )
             set_auth_token(auth_response.access_token)
+            set_auth_identity(
+                {
+                    "user_id": auth_response.user_id,
+                    "username": auth_response.username,
+                    "display_name": auth_response.display_name,
+                },
+                auth_response.roles,
+            )
             set_active_role(auth_response.roles[0] if auth_response.roles else ROLE_OPTIONS[0])
             set_active_chat_session_id(None)
             st.success(f"Signed in as {auth_response.display_name}.")
@@ -53,12 +65,18 @@ with st.sidebar:
         st.info("Sign in to access the workspace.")
         st.stop()
 
+    available_roles = get_auth_roles() or [ROLE_OPTIONS[0]]
     selected_role = st.selectbox(
         "Active role context",
-        ROLE_OPTIONS,
-        index=ROLE_OPTIONS.index(get_active_role()),
+        available_roles,
+        index=available_roles.index(get_active_role())
+        if get_active_role() in available_roles
+        else 0,
     )
     set_active_role(selected_role)
+    if st.button("Sign Out", use_container_width=True):
+        clear_auth_session()
+        st.rerun()
 
 st.markdown("### Current Focus")
 st.write(
@@ -73,6 +91,8 @@ col2.info("Integration contracts are in place for trade and risk source adapters
 col3.info("Initial SQL migrations define the first schemas and core operational tables.")
 
 st.markdown("### Demo Session")
+auth_user = get_auth_user() or {}
+st.write(f"Signed-in user: `{auth_user.get('username', 'unknown')}`")
 st.write(f"Active role: `{get_active_role()}`")
 st.write(f"Active chat session: `{get_active_chat_session_id() or 'not started'}`")
 st.write(

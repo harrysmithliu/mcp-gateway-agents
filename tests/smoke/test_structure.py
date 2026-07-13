@@ -13,8 +13,10 @@ REQUIRED_PATHS = [
     "sql/migrations/007_create_risk_batch_score_tables.sql",
     "sql/migrations/008_create_risk_alert_status_events.sql",
     "sql/migrations/009_create_auth_tables.sql",
+    "sql/migrations/010_create_risk_alert_approvals.sql",
     "docs/PROJECT_REQUIREMENTS.md",
     "scripts/verify_round5_persistence.py",
+    "scripts/verify_round7_workflow.py",
 ]
 
 

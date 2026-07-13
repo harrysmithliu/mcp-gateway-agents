@@ -1,10 +1,6 @@
-import json
-import os
 from dataclasses import dataclass, field
-from urllib import error, request
 
-
-DEFAULT_API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+from frontend.services.api import DEFAULT_API_BASE_URL, build_api_client
 
 
 @dataclass(slots=True)
@@ -58,25 +54,11 @@ def _post_json(
     timeout_seconds: float = 5.0,
     access_token: str | None = None,
 ) -> dict[str, object]:
-    chat_request = request.Request(
-        url=f"{api_base_url.rstrip('/')}/{endpoint_path.lstrip('/')}",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            **(
-                {"Authorization": f"Bearer {access_token}"}
-                if access_token
-                else {}
-            ),
-        },
-        method="POST",
-    )
-
-    try:
-        with request.urlopen(chat_request, timeout=timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except error.URLError as exc:
-        raise RuntimeError("Unable to reach the chat API.") from exc
+    return build_api_client(
+        access_token=access_token,
+        api_base_url=api_base_url,
+        timeout_seconds=timeout_seconds,
+    ).post(endpoint_path, payload)
 
 
 def _parse_tool_invocation_result(

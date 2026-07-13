@@ -65,6 +65,17 @@ class RiskAlertStatusEventRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class RiskAlertApprovalRecord:
+    approval_id: str
+    alert_id: str
+    approval_status: str
+    request_reason: str
+    requested_by_user_id: int | None = None
+    decided_by_user_id: int | None = None
+    decision_reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RiskBatchScoreRunRecord:
     run_id: str
     requested_account_count: int

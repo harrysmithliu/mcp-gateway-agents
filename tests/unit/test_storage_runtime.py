@@ -27,6 +27,7 @@ def test_build_storage_bundle_creates_database_backed_repositories() -> None:
         storage_bundle.risk_alert_status_event_repository.executor
         is storage_bundle.database_client
     )
+    assert storage_bundle.risk_alert_approval_repository.executor is storage_bundle.database_client
     assert (
         storage_bundle.risk_batch_score_repository.executor
         is storage_bundle.database_client

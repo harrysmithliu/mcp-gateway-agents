@@ -1,6 +1,6 @@
-import json
 from dataclasses import dataclass, field
-from urllib import error, request
+
+from frontend.services.api import ApiError, DEFAULT_API_BASE_URL, build_api_client
 
 
 @dataclass(slots=True)
@@ -17,28 +17,18 @@ class AuthApiResponse:
 def post_login(
     username: str,
     password: str,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
 ) -> AuthApiResponse:
-    payload = json.dumps(
-        {
-            "username": username,
-            "password": password,
-        }
-    ).encode("utf-8")
-    login_request = request.Request(
-        url=f"{api_base_url.rstrip('/')}/auth/login",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with request.urlopen(login_request, timeout=timeout_seconds) as response:
-            response_payload = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        raise RuntimeError("Login failed. Check the username and password.") from exc
-    except error.URLError as exc:
-        raise RuntimeError("Unable to reach the authentication API.") from exc
+        response_payload = build_api_client(
+            api_base_url=api_base_url,
+            timeout_seconds=timeout_seconds,
+        ).post("/auth/login", {"username": username, "password": password})
+    except ApiError as exc:
+        if exc.status_code == 401:
+            raise RuntimeError("Login failed. Check the username and password.") from exc
+        raise RuntimeError(str(exc)) from exc
 
     user = response_payload["user"]
     return AuthApiResponse(

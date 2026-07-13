@@ -1,6 +1,6 @@
 # Local Runbook
 
-This runbook is the shortest supported path for another developer to pull the repository, start the local runtime, seed the platform-owned state, and verify the Batch 2 closed loop with real PostgreSQL and Redis services.
+This runbook is the shortest supported path for another developer to pull the repository, start the local runtime, seed the platform-owned state, and verify the authenticated product workflow with real PostgreSQL and Redis services.
 
 ## Prerequisites
 
@@ -71,6 +71,7 @@ The frontend should show:
 - current chat session indicator
 - reset chat session button
 - chat form and tool debug panel
+- Account Investigation, Risk Scoring, Alerts, and Audit Review pages
 
 ## 6. Run End-To-End Verification
 
@@ -90,6 +91,14 @@ The verification script uses the frontend HTTP client seam to call `/chat`, then
 - Redis short-term context contains the chat session messages
 
 The script prints a JSON report with the `session_id`, selected tool names, Redis message count, and PostgreSQL persistence counts.
+
+For the authenticated analyst-to-risk-operator-to-supervisor workflow, run:
+
+```bash
+uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py
+```
+
+This verifies account investigation access, risk batch scoring, risk-operator alert acknowledgement, supervisor approval, audit review, and the corresponding analyst denials. It prints role and status metadata only; bearer tokens are never printed.
 
 ## 7. Manual Demo Flow
 
