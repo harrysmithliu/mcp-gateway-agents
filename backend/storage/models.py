@@ -54,6 +54,43 @@ class RiskAlertRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class RiskAlertStatusEventRecord:
+    event_id: str
+    alert_id: str
+    previous_status: str
+    next_status: str
+    reason: str | None = None
+    details: dict[str, object] = field(default_factory=dict)
+    actor_user_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RiskBatchScoreRunRecord:
+    run_id: str
+    requested_account_count: int
+    scored_account_count: int
+    missing_account_count: int
+    highest_risk_score: int
+    average_risk_score: float
+    risk_level_counts: dict[str, int] = field(default_factory=dict)
+    actor_user_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RiskBatchScoreResultRecord:
+    result_id: str
+    run_id: str
+    account_id: str
+    profile_id: str
+    risk_score: int
+    risk_level: str
+    review_status: str
+    exposure_usd: int
+    alert_count_30d: int
+    risk_flags: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
 class KnowledgeDocumentRecord:
     document_id: str
     title: str

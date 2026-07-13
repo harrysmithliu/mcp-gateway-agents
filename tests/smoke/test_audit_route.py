@@ -24,3 +24,20 @@ def test_audit_recent_events_route_returns_stable_payload() -> None:
     assert payload["limit"] == 5
     assert payload["query_status"] in {"completed", "degraded"}
     assert isinstance(payload["events"], list)
+
+
+def test_audit_tool_invocations_route_returns_stable_payload() -> None:
+    client = TestClient(app)
+
+    response = client.get(
+        "/audit/tool-invocations?limit=5&tool_name=knowledge.search",
+        headers={"x-demo-user": "supervisor_demo"},
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["limit"] == 5
+    assert payload["tool_name"] == "knowledge.search"
+    assert payload["query_status"] in {"completed", "degraded"}
+    assert isinstance(payload["tool_calls"], list)

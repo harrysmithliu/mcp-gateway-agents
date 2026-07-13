@@ -16,3 +16,5 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Performs exactly one live Anthropic structured-planner request and prints only safe planner metadata; it does not retry or use the legacy fallback path.
 - `uv run --no-sync python scripts/verify_mcp_transport.py`
   Runs one local `sdk_stdio` knowledge tool call and prints safe transport metadata; set `MCP_SERVER_RUNTIME=runtime` to use the configured retrieval runtime.
+- `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py`
+  Applies local migrations, writes and reads a risk batch score, transitions a risk alert, and verifies its audit history.

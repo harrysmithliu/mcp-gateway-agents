@@ -9,8 +9,8 @@ from backend.storage.repositories.base import StatementExecutor
 class AuditEventRepository:
     executor: StatementExecutor
 
-    def create_audit_event(self, record: AuditEventRecord) -> SQLStatement:
-        statement = SQLStatement(
+    def build_create_statement(self, record: AuditEventRecord) -> SQLStatement:
+        return SQLStatement(
             sql=(
                 "INSERT INTO audit.audit_events "
                 "(event_id, actor_user_id, event_type, event_summary, event_payload) "
@@ -26,6 +26,9 @@ class AuditEventRepository:
                 "event_payload": record.event_payload,
             },
         )
+
+    def create_audit_event(self, record: AuditEventRecord) -> SQLStatement:
+        statement = self.build_create_statement(record)
         self.executor.execute(statement)
         return statement
 
@@ -33,28 +36,31 @@ class AuditEventRepository:
         self,
         limit: int = 10,
         event_type: str | None = None,
+        session_id: str | None = None,
+        actor_user_id: int | None = None,
     ) -> list[dict[str, object]]:
-        if event_type is None:
-            statement = SQLStatement(
-                sql=(
-                    "SELECT event_id, actor_user_id, event_type, event_summary, "
-                    "event_payload, created_at "
-                    "FROM audit.audit_events "
-                    "ORDER BY created_at DESC "
-                    "LIMIT %(limit)s"
-                ),
-                params={"limit": limit},
-            )
-        else:
-            statement = SQLStatement(
-                sql=(
-                    "SELECT event_id, actor_user_id, event_type, event_summary, "
-                    "event_payload, created_at "
-                    "FROM audit.audit_events "
-                    "WHERE event_type = %(event_type)s "
-                    "ORDER BY created_at DESC "
-                    "LIMIT %(limit)s"
-                ),
-                params={"event_type": event_type, "limit": limit},
-            )
+        where_clauses: list[str] = []
+        params: dict[str, object] = {"limit": limit}
+        if event_type is not None:
+            where_clauses.append("event_type = %(event_type)s")
+            params["event_type"] = event_type
+        if session_id is not None:
+            where_clauses.append("event_payload ->> 'session_id' = %(session_id)s")
+            params["session_id"] = session_id
+        if actor_user_id is not None:
+            where_clauses.append("actor_user_id = %(actor_user_id)s")
+            params["actor_user_id"] = actor_user_id
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)} " if where_clauses else ""
+        statement = SQLStatement(
+            sql=(
+                "SELECT event_id, actor_user_id, event_type, event_summary, "
+                "event_payload, created_at "
+                "FROM audit.audit_events "
+                f"{where_sql}"
+                "ORDER BY created_at DESC "
+                "LIMIT %(limit)s"
+            ),
+            params=params,
+        )
         return self.executor.fetch_all(statement)

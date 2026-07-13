@@ -14,6 +14,9 @@ from backend.storage.models import (
     KnowledgeChunkRecord,
     KnowledgeDocumentRecord,
     RiskAlertRecord,
+    RiskAlertStatusEventRecord,
+    RiskBatchScoreResultRecord,
+    RiskBatchScoreRunRecord,
     ToolCallLogRecord,
 )
 from backend.storage.repositories.audit_events import AuditEventRepository
@@ -24,6 +27,10 @@ from backend.storage.repositories.knowledge_chunks import KnowledgeChunkReposito
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
 from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
+from backend.storage.repositories.risk_alert_status_events import (
+    RiskAlertStatusEventRepository,
+)
+from backend.storage.repositories.risk_batch_scores import RiskBatchScoreRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 
 
@@ -320,3 +327,87 @@ def test_knowledge_search_repository_builds_pgvector_similarity_query() -> None:
     assert records[0].chunk_id == "chunk-1"
     assert records[0].similarity_score == 0.91
     assert records[0].chunk_metadata == {"topic": "surveillance"}
+
+
+def test_risk_batch_score_repository_builds_run_and_result_statements() -> None:
+    executor = FakeExecutor()
+    repository = RiskBatchScoreRepository(executor=executor)
+
+    run_statement = repository.create_run(
+        RiskBatchScoreRunRecord(
+            run_id="run-1",
+            requested_account_count=2,
+            scored_account_count=2,
+            missing_account_count=0,
+            highest_risk_score=82,
+            average_risk_score=71.5,
+            risk_level_counts={"high": 1, "medium": 1, "low": 0},
+            actor_user_id=101,
+        )
+    )
+    result_statement = repository.create_result(
+        RiskBatchScoreResultRecord(
+            result_id="result-1",
+            run_id="run-1",
+            account_id="acct-atlas-01",
+            profile_id="profile-atlas-01",
+            risk_score=82,
+            risk_level="high",
+            review_status="pending",
+            exposure_usd=250000,
+            alert_count_30d=3,
+            risk_flags=["rapid_withdrawal"],
+        )
+    )
+
+    assert "INSERT INTO risk.batch_score_runs" in run_statement.sql
+    assert "INSERT INTO risk.batch_score_results" in result_statement.sql
+    assert run_statement.params["risk_level_counts"] == {
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+    }
+    assert result_statement.params["risk_flags"] == ["rapid_withdrawal"]
+    assert executor.statements == [run_statement, result_statement]
+
+
+def test_risk_batch_score_repository_reads_run_and_results() -> None:
+    executor = FetchFakeExecutor(
+        rows=[
+            {
+                "run_id": "run-1",
+                "account_id": "acct-atlas-01",
+                "risk_score": 82,
+            }
+        ]
+    )
+    repository = RiskBatchScoreRepository(executor=executor)
+
+    run = repository.get_run("run-1")
+    results = repository.list_results("run-1")
+
+    assert run == executor.rows[0]
+    assert results == executor.rows[0:1]
+    assert "FROM risk.batch_score_runs" in executor.statements[0].sql
+    assert "FROM risk.batch_score_results" in executor.statements[1].sql
+
+
+def test_risk_alert_status_event_repository_builds_history_statement() -> None:
+    executor = FakeExecutor()
+    repository = RiskAlertStatusEventRepository(executor=executor)
+
+    statement = repository.create_event(
+        RiskAlertStatusEventRecord(
+            event_id="status-event-1",
+            alert_id="alert-1",
+            previous_status="open",
+            next_status="acknowledged",
+            reason="Analyst accepted review.",
+            details={"source": "ops_api"},
+        )
+    )
+
+    assert "INSERT INTO risk.risk_alert_status_events" in statement.sql
+    assert statement.params["previous_status"] == "open"
+    assert statement.params["next_status"] == "acknowledged"
+    assert executor.statements == [statement]

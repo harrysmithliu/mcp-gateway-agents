@@ -23,6 +23,14 @@ def test_build_storage_bundle_creates_database_backed_repositories() -> None:
     assert storage_bundle.tool_call_log_repository.executor is storage_bundle.database_client
     assert storage_bundle.audit_event_repository.executor is storage_bundle.database_client
     assert storage_bundle.risk_alert_repository.executor is storage_bundle.database_client
+    assert (
+        storage_bundle.risk_alert_status_event_repository.executor
+        is storage_bundle.database_client
+    )
+    assert (
+        storage_bundle.risk_batch_score_repository.executor
+        is storage_bundle.database_client
+    )
     assert storage_bundle.knowledge_document_repository.executor is storage_bundle.database_client
     assert storage_bundle.knowledge_chunk_repository.executor is storage_bundle.database_client
     assert storage_bundle.chunk_embedding_repository.executor is storage_bundle.database_client

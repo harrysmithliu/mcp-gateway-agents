@@ -40,4 +40,10 @@ def test_ops_alert_status_update_route_returns_stable_payload() -> None:
     payload = response.json()
     assert payload["alert_id"] == "demo-alert"
     assert payload["status"] == "closed"
-    assert payload["update_status"] in {"completed", "degraded"}
+    assert payload["update_status"] in {
+        "completed",
+        "not_found",
+        "invalid_transition",
+        "conflict",
+        "failed",
+    }

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 from backend.api.dependencies import get_application_container
 from backend.api.schemas.risk import RiskBatchScoreRequest
 from backend.auth.rbac import DemoUser, Role, require_roles
-from backend.services.risk import RiskService
 
 router = APIRouter(tags=["risk"])
 
@@ -19,5 +18,4 @@ def batch_score_accounts(
     ],
     container: Annotated[object, Depends(get_application_container)],
 ) -> dict[str, object]:
-    risk_service = container.risk_service
-    return risk_service.score_accounts_batch(request.account_ids)
+    return container.risk_batch_score_service.score_accounts_batch(request.account_ids)

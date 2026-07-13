@@ -25,4 +25,5 @@ def test_risk_batch_score_route_returns_aggregate_summary() -> None:
     assert payload["total_requested"] == 3
     assert payload["total_scored"] == 2
     assert payload["profiles"][0]["account_id"] == "acct-atlas-01"
-    assert payload["result_persistence"]["status"] == "not_persisted"
+    assert payload["run_id"]
+    assert payload["result_persistence"]["status"] in {"completed", "degraded"}

@@ -9,6 +9,10 @@ from backend.storage.repositories.knowledge_chunks import KnowledgeChunkReposito
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
 from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
+from backend.storage.repositories.risk_alert_status_events import (
+    RiskAlertStatusEventRepository,
+)
+from backend.storage.repositories.risk_batch_scores import RiskBatchScoreRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 from backend.storage.settings import Settings
 
@@ -24,6 +28,8 @@ class StorageBundle:
     tool_call_log_repository: ToolCallLogRepository
     audit_event_repository: AuditEventRepository
     risk_alert_repository: RiskAlertRepository
+    risk_alert_status_event_repository: RiskAlertStatusEventRepository
+    risk_batch_score_repository: RiskBatchScoreRepository
     knowledge_document_repository: KnowledgeDocumentRepository
     knowledge_chunk_repository: KnowledgeChunkRepository
     chunk_embedding_repository: ChunkEmbeddingRepository
@@ -41,6 +47,10 @@ def build_storage_bundle(settings: Settings) -> StorageBundle:
         tool_call_log_repository=ToolCallLogRepository(executor=database_client),
         audit_event_repository=AuditEventRepository(executor=database_client),
         risk_alert_repository=RiskAlertRepository(executor=database_client),
+        risk_alert_status_event_repository=RiskAlertStatusEventRepository(
+            executor=database_client
+        ),
+        risk_batch_score_repository=RiskBatchScoreRepository(executor=database_client),
         knowledge_document_repository=KnowledgeDocumentRepository(executor=database_client),
         knowledge_chunk_repository=KnowledgeChunkRepository(executor=database_client),
         chunk_embedding_repository=ChunkEmbeddingRepository(executor=database_client),

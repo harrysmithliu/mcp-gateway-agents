@@ -17,6 +17,7 @@ from backend.services.knowledge import KnowledgeService
 from backend.services.operations import OperationsService
 from backend.services.ops_workflow import OpsWorkflowService
 from backend.services.risk import RiskService
+from backend.services.risk_batch import RiskBatchScoreService
 from backend.storage.chat_persistence import ChatPersistenceCoordinator
 from backend.storage.redis_chat_context import RedisChatContextStore
 from backend.storage.runtime import StorageBundle, build_storage_bundle
@@ -39,6 +40,7 @@ class ApplicationContainer:
     mcp_sdk_adapter: MCPSDKAdapter
     knowledge_service: KnowledgeService
     risk_service: RiskService
+    risk_batch_score_service: RiskBatchScoreService
     trade_service: TradeService
     operations_service: OperationsService
     storage_bundle: StorageBundle
@@ -63,6 +65,11 @@ def build_application_container() -> ApplicationContainer:
     chat_persistence_coordinator = ChatPersistenceCoordinator(
         storage_bundle=storage_bundle,
         redis_chat_context_store=redis_chat_context_store,
+    )
+    risk_batch_score_service = RiskBatchScoreService(
+        risk_service=risk_service,
+        risk_batch_score_repository=storage_bundle.risk_batch_score_repository,
+        database_client=storage_bundle.database_client,
     )
     base_registry = build_default_registry(
         knowledge_service=knowledge_service,
@@ -100,6 +107,7 @@ def build_application_container() -> ApplicationContainer:
         ),
         knowledge_service=knowledge_service,
         risk_service=risk_service,
+        risk_batch_score_service=risk_batch_score_service,
         trade_service=trade_service,
         operations_service=operations_service,
         storage_bundle=storage_bundle,

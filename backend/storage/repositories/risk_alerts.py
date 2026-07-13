@@ -9,8 +9,8 @@ from backend.storage.repositories.base import StatementExecutor
 class RiskAlertRepository:
     executor: StatementExecutor
 
-    def create_risk_alert(self, record: RiskAlertRecord) -> SQLStatement:
-        statement = SQLStatement(
+    def build_create_statement(self, record: RiskAlertRecord) -> SQLStatement:
+        return SQLStatement(
             sql=(
                 "INSERT INTO risk.risk_alerts "
                 "("
@@ -34,8 +34,43 @@ class RiskAlertRepository:
                 "details": record.details,
             },
         )
+
+    def create_risk_alert(self, record: RiskAlertRecord) -> SQLStatement:
+        statement = self.build_create_statement(record)
         self.executor.execute(statement)
         return statement
+
+    def get_alert(self, alert_id: str) -> dict[str, object] | None:
+        rows = self.executor.fetch_all(
+            SQLStatement(
+                sql=(
+                    "SELECT alert_id, session_id, message_id, actor_user_id, alert_type, "
+                    "severity, status, summary, details, created_at, updated_at "
+                    "FROM risk.risk_alerts WHERE alert_id = %(alert_id)s"
+                ),
+                params={"alert_id": alert_id},
+            )
+        )
+        return rows[0] if rows else None
+
+    def build_update_status_statement(
+        self,
+        alert_id: str,
+        previous_status: str,
+        next_status: str,
+    ) -> SQLStatement:
+        return SQLStatement(
+            sql=(
+                "UPDATE risk.risk_alerts SET status = %(next_status)s, updated_at = NOW() "
+                "WHERE alert_id = %(alert_id)s AND status = %(previous_status)s "
+                "RETURNING alert_id, status"
+            ),
+            params={
+                "alert_id": alert_id,
+                "previous_status": previous_status,
+                "next_status": next_status,
+            },
+        )
 
     def list_recent_alerts(
         self,
@@ -72,16 +107,12 @@ class RiskAlertRepository:
         alert_id: str,
         status: str,
     ) -> SQLStatement:
-        statement = SQLStatement(
-            sql=(
-                "UPDATE risk.risk_alerts "
-                "SET status = %(status)s "
-                "WHERE alert_id = %(alert_id)s"
-            ),
-            params={
-                "alert_id": alert_id,
-                "status": status,
-            },
+        current_alert = self.get_alert(alert_id)
+        previous_status = str(current_alert["status"]) if current_alert else ""
+        statement = self.build_update_status_statement(
+            alert_id=alert_id,
+            previous_status=previous_status,
+            next_status=status,
         )
         self.executor.execute(statement)
         return statement

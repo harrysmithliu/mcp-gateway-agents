@@ -40,4 +40,5 @@ def update_alert_status(
     return ops_workflow_service.update_alert_status(
         alert_id=alert_id,
         status=request.status,
+        actor_user_id=(int(user.user_id) if user.user_id.isdigit() else None),
     )

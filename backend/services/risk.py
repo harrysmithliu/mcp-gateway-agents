@@ -93,10 +93,6 @@ class RiskService:
             ),
             "risk_level_counts": risk_level_counts,
             "profiles": matched_profiles,
-            "result_persistence": {
-                "status": "not_persisted",
-                "reason": "batch_score_persistence_seam_pending",
-            },
         }
 
     def score_account(

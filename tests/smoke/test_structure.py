@@ -10,7 +10,10 @@ REQUIRED_PATHS = [
     "sql/migrations/002_create_core_operational_tables.sql",
     "sql/migrations/005_create_rag_tables.sql",
     "sql/migrations/006_upgrade_chunk_embeddings_to_384.sql",
+    "sql/migrations/007_create_risk_batch_score_tables.sql",
+    "sql/migrations/008_create_risk_alert_status_events.sql",
     "docs/PROJECT_REQUIREMENTS.md",
+    "scripts/verify_round5_persistence.py",
 ]
 
 
