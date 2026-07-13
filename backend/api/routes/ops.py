@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, Query
 
 from backend.api.dependencies import get_ops_workflow_service
 from backend.api.schemas.ops import UpdateAlertStatusRequest
-from backend.auth.rbac import DemoUser, Role, require_roles
+from backend.auth.dependencies import require_principal_roles
+from backend.auth.models import IdentityPrincipal
+from backend.auth.rbac import Role
 from backend.services.ops_workflow import OpsWorkflowService
 
 router = APIRouter(tags=["operations"])
@@ -13,8 +15,8 @@ router = APIRouter(tags=["operations"])
 @router.get("/ops/alerts")
 def list_recent_alerts(
     user: Annotated[
-        DemoUser,
-        Depends(require_roles(Role.RISK_OPERATOR, Role.SUPERVISOR, Role.ADMIN)),
+        IdentityPrincipal,
+        Depends(require_principal_roles(Role.RISK_OPERATOR, Role.SUPERVISOR, Role.ADMIN)),
     ],
     ops_workflow_service: Annotated[
         OpsWorkflowService, Depends(get_ops_workflow_service)
@@ -30,8 +32,8 @@ def update_alert_status(
     alert_id: str,
     request: UpdateAlertStatusRequest,
     user: Annotated[
-        DemoUser,
-        Depends(require_roles(Role.SUPERVISOR, Role.ADMIN)),
+        IdentityPrincipal,
+        Depends(require_principal_roles(Role.SUPERVISOR, Role.ADMIN)),
     ],
     ops_workflow_service: Annotated[
         OpsWorkflowService, Depends(get_ops_workflow_service)
@@ -40,5 +42,5 @@ def update_alert_status(
     return ops_workflow_service.update_alert_status(
         alert_id=alert_id,
         status=request.status,
-        actor_user_id=(int(user.user_id) if user.user_id.isdigit() else None),
+        actor_user_id=user.user_id,
     )

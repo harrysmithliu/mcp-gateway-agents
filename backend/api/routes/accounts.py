@@ -7,7 +7,9 @@ from backend.api.dependencies import (
     get_account_investigation_service,
 )
 from backend.api.schemas.accounts import AccountInvestigationResponse, AccountSearchRequest
-from backend.auth.rbac import DemoUser, Role, require_roles
+from backend.auth.dependencies import require_principal_roles
+from backend.auth.models import IdentityPrincipal
+from backend.auth.rbac import Role
 from backend.services.accounts import AccountDomainService
 from backend.services.account_investigation import AccountInvestigationService
 
@@ -18,9 +20,9 @@ router = APIRouter(tags=["accounts"])
 def search_accounts(
     request: AccountSearchRequest,
     user: Annotated[
-        DemoUser,
+        IdentityPrincipal,
         Depends(
-            require_roles(
+            require_principal_roles(
                 Role.ANALYST,
                 Role.RISK_OPERATOR,
                 Role.SUPERVISOR,
@@ -42,9 +44,9 @@ def search_accounts(
 def get_account_overview(
     account_id: str,
     user: Annotated[
-        DemoUser,
+        IdentityPrincipal,
         Depends(
-            require_roles(
+            require_principal_roles(
                 Role.ANALYST,
                 Role.RISK_OPERATOR,
                 Role.SUPERVISOR,
@@ -66,9 +68,9 @@ def get_account_overview(
 def get_account_activity_summary(
     account_id: str,
     user: Annotated[
-        DemoUser,
+        IdentityPrincipal,
         Depends(
-            require_roles(
+            require_principal_roles(
                 Role.ANALYST,
                 Role.RISK_OPERATOR,
                 Role.SUPERVISOR,
@@ -93,9 +95,9 @@ def get_account_activity_summary(
 def get_account_investigation(
     account_id: str,
     user: Annotated[
-        DemoUser,
+        IdentityPrincipal,
         Depends(
-            require_roles(
+            require_principal_roles(
                 Role.ANALYST,
                 Role.RISK_OPERATOR,
                 Role.SUPERVISOR,

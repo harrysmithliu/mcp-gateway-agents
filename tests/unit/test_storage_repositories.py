@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -6,6 +7,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from backend.storage.db import SQLStatement
+from backend.auth.models import AuthSessionRecord
 from backend.storage.models import (
     AuditEventRecord,
     ChatMessageRecord,
@@ -32,6 +34,7 @@ from backend.storage.repositories.risk_alert_status_events import (
 )
 from backend.storage.repositories.risk_batch_scores import RiskBatchScoreRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
+from backend.storage.repositories.identity import IdentityRepository
 
 
 class FakeExecutor:
@@ -50,6 +53,62 @@ class FetchFakeExecutor(FakeExecutor):
     def fetch_all(self, statement: SQLStatement) -> list[dict[str, object]]:
         self.statements.append(statement)
         return self.rows
+
+
+class SequentialFetchFakeExecutor(FakeExecutor):
+    def __init__(self, responses: list[list[dict[str, object]]]) -> None:
+        super().__init__()
+        self.responses = responses
+
+    def fetch_all(self, statement: SQLStatement) -> list[dict[str, object]]:
+        self.statements.append(statement)
+        return self.responses.pop(0)
+
+
+def test_identity_repository_builds_auth_session_insert_statement() -> None:
+    executor = FakeExecutor()
+    repository = IdentityRepository(executor=executor)
+    record = AuthSessionRecord(
+        auth_session_id="session-1",
+        user_id=101,
+        browser_session_id="browser-1",
+        token_jti="jti-1",
+        expires_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    statement = repository.create_auth_session(record)
+
+    assert "INSERT INTO iam.auth_sessions" in statement.sql
+    assert statement.params["user_id"] == 101
+    assert statement.params["token_jti"] == "jti-1"
+    assert executor.statements == [statement]
+
+
+def test_identity_repository_builds_active_session_query() -> None:
+    executor = SequentialFetchFakeExecutor(
+        [
+            [
+                {
+                    "auth_session_id": "session-1",
+                    "user_id": 101,
+                    "browser_session_id": "browser-1",
+                    "token_jti": "jti-1",
+                    "expires_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                    "username": "analyst_demo",
+                    "display_name": "Analyst Demo",
+                    "is_active": True,
+                }
+            ],
+            [{"role_name": "analyst"}],
+        ]
+    )
+    repository = IdentityRepository(executor=executor)
+
+    session = repository.get_active_auth_session("session-1", "jti-1")
+
+    assert session is not None
+    assert session.user.username == "analyst_demo"
+    assert "expires_at > NOW()" in executor.statements[0].sql
 
 
 def test_chat_session_repository_builds_insert_statement() -> None:
@@ -72,6 +131,17 @@ def test_chat_session_repository_builds_insert_statement() -> None:
         "session_title": "Risk review",
     }
     assert executor.statements == [statement]
+
+
+def test_chat_session_repository_builds_ownership_lookup_and_claim_statements() -> None:
+    executor = FetchFakeExecutor([{"session_id": "session-1", "user_id": 101}])
+    repository = ChatSessionRepository(executor=executor)
+
+    session = repository.get_session("session-1")
+    claim_statement = repository.claim_session("session-1", 101)
+
+    assert session == {"session_id": "session-1", "user_id": 101}
+    assert "user_id IS NULL" in claim_statement.sql
 
 
 def test_chat_message_repository_builds_insert_statement() -> None:

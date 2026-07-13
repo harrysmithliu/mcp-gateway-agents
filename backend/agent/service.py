@@ -590,6 +590,7 @@ class AgentService:
         normalized_text: str,
         planned_tool_calls: list[PlannedToolCall],
         registry: ToolGatewayPort,
+        authorization_context: dict[str, object] | None = None,
     ) -> tuple[list[ToolInvocationResult], list[str]]:
         tool_invocation_results: list[ToolInvocationResult] = []
         evidence: list[str] = []
@@ -601,6 +602,8 @@ class AgentService:
             "user_role": normalized_role or "unknown",
             "message_text": normalized_text,
         }
+        if authorization_context is not None:
+            request_payload["authorization_context"] = authorization_context
         for planned_tool_call in planned_tool_calls:
             tool_invocation_result = registry.invoke(
                 tool_name=planned_tool_call.tool_name,
@@ -713,10 +716,17 @@ class AgentService:
             and command.session_id is not None
             and self.redis_chat_context_store is not None
         ):
-            effective_recent_messages = self.redis_chat_context_store.load_recent_messages(
-                session_id=command.session_id,
-                limit=6,
-            )
+            if command.user_id is None:
+                effective_recent_messages = self.redis_chat_context_store.load_recent_messages(
+                    session_id=command.session_id,
+                    limit=6,
+                )
+            else:
+                effective_recent_messages = self.redis_chat_context_store.load_recent_messages(
+                    session_id=command.session_id,
+                    limit=6,
+                    user_id=command.user_id,
+                )
 
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
@@ -758,6 +768,7 @@ class AgentService:
             normalized_text=normalized_text,
             planned_tool_calls=planned_tool_calls,
             registry=active_registry,
+            authorization_context=command.authorization_context,
         )
         evidence.extend(invocation_evidence)
 

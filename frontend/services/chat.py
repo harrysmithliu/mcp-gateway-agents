@@ -1,6 +1,10 @@
 import json
+import os
 from dataclasses import dataclass, field
 from urllib import error, request
+
+
+DEFAULT_API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 @dataclass(slots=True)
@@ -50,13 +54,21 @@ class ChatApiResponse:
 def _post_json(
     endpoint_path: str,
     payload: dict[str, object],
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> dict[str, object]:
     chat_request = request.Request(
         url=f"{api_base_url.rstrip('/')}/{endpoint_path.lstrip('/')}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            **(
+                {"Authorization": f"Bearer {access_token}"}
+                if access_token
+                else {}
+            ),
+        },
         method="POST",
     )
 
@@ -84,12 +96,13 @@ def post_chat_message(
     message_text: str,
     session_id: str | None = None,
     recent_messages: list[ChatApiHistoryMessage] | None = None,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> ChatApiResponse:
-    response_payload = _post_json(
-        endpoint_path="/chat",
-        payload={
+    request_kwargs = {
+        "endpoint_path": "/chat",
+        "payload": {
             "user_role": user_role,
             "message_text": message_text,
             "session_id": session_id,
@@ -101,9 +114,12 @@ def post_chat_message(
                 for recent_message in recent_messages or []
             ],
         },
-        api_base_url=api_base_url,
-        timeout_seconds=timeout_seconds,
-    )
+        "api_base_url": api_base_url,
+        "timeout_seconds": timeout_seconds,
+    }
+    if access_token is not None:
+        request_kwargs["access_token"] = access_token
+    response_payload = _post_json(**request_kwargs)
 
     return ChatApiResponse(
         session_id=response_payload.get("session_id"),
@@ -152,55 +168,63 @@ def post_chat_message(
 
 def post_knowledge_search(
     query: str,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> ChatApiToolInvocationResult:
     response_payload = _post_json(
         endpoint_path="/tools/knowledge-search",
         payload={"query": query},
         api_base_url=api_base_url,
         timeout_seconds=timeout_seconds,
+        access_token=access_token,
     )
     return _parse_tool_invocation_result(response_payload)
 
 
 def post_risk_score_account(
     query: str,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> ChatApiToolInvocationResult:
     response_payload = _post_json(
         endpoint_path="/tools/risk-score-account",
         payload={"query": query},
         api_base_url=api_base_url,
         timeout_seconds=timeout_seconds,
+        access_token=access_token,
     )
     return _parse_tool_invocation_result(response_payload)
 
 
 def post_trade_query_metrics(
     query: str,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> ChatApiToolInvocationResult:
     response_payload = _post_json(
         endpoint_path="/tools/trade-query-metrics",
         payload={"query": query},
         api_base_url=api_base_url,
         timeout_seconds=timeout_seconds,
+        access_token=access_token,
     )
     return _parse_tool_invocation_result(response_payload)
 
 
 def post_ops_create_alert_or_action(
     query: str,
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEFAULT_API_BASE_URL,
     timeout_seconds: float = 5.0,
+    access_token: str | None = None,
 ) -> ChatApiToolInvocationResult:
     response_payload = _post_json(
         endpoint_path="/tools/ops-create-alert-or-action",
         payload={"query": query},
         api_base_url=api_base_url,
         timeout_seconds=timeout_seconds,
+        access_token=access_token,
     )
     return _parse_tool_invocation_result(response_payload)

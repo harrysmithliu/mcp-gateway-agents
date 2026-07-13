@@ -118,7 +118,7 @@ def _build_retrieval_query(
     return RetrievalQuery(
         text=query_text,
         top_k=top_k,
-        access_level=_optional_string(request_payload.get("access_level")),
+        access_level=_build_authorized_access_level(request_payload),
         jurisdiction=_optional_string(request_payload.get("jurisdiction")),
         tags=tags,
     )
@@ -128,3 +128,10 @@ def _optional_string(value: object) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def _build_authorized_access_level(request_payload: dict[str, object]) -> str | None:
+    authorization_context = request_payload.get("authorization_context")
+    if isinstance(authorization_context, dict):
+        return _optional_string(authorization_context.get("access_level"))
+    return _optional_string(request_payload.get("access_level"))

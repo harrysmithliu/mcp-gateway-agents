@@ -25,7 +25,12 @@ def test_tool_routes_return_completed_invocation_results() -> None:
     ]
 
     for path, query, expected_tool_name in tool_requests:
-        response = client.post(path, json={"query": query})
+        headers = (
+            {"x-demo-user": "risk_operator_demo"}
+            if expected_tool_name == "ops.create_alert_or_action"
+            else {}
+        )
+        response = client.post(path, json={"query": query}, headers=headers)
 
         assert response.status_code == 200
 

@@ -25,6 +25,7 @@ from backend.storage.models import (
 class FakeChatSessionRepository:
     def __init__(self) -> None:
         self.records: list[ChatSessionRecord] = []
+        self.existing_sessions: dict[str, dict[str, object]] = {}
 
     def create_session(self, record: ChatSessionRecord) -> SQLStatement:
         self.records.append(record)
@@ -35,6 +36,19 @@ class FakeChatSessionRepository:
                 "user_id": record.user_id,
                 "session_title": record.session_title,
             },
+        )
+
+    def get_session(self, session_id: str) -> dict[str, object] | None:
+        return self.existing_sessions.get(session_id)
+
+    def claim_session(self, session_id: str, user_id: int) -> SQLStatement:
+        self.existing_sessions[session_id] = {
+            "session_id": session_id,
+            "user_id": user_id,
+        }
+        return SQLStatement(
+            sql="UPDATE convo.chat_sessions SET user_id = %(user_id)s",
+            params={"session_id": session_id, "user_id": user_id},
         )
 
 
@@ -69,7 +83,9 @@ class FakeRedisChatContextStore:
         session_id: str | None,
         role: str,
         content: str,
+        user_id: int | None = None,
     ) -> bool:
+        _ = user_id
         self.append_calls.append((session_id, role, content))
         if session_id is None:
             return False
@@ -296,6 +312,29 @@ def test_chat_persistence_coordinator_starts_exchange_from_chat_command() -> Non
     assert redis_store.messages_by_session["session-round-1"] == [
         ChatHistoryMessage(role="user", content="Review this account.")
     ]
+
+
+def test_chat_persistence_coordinator_rejects_foreign_owned_session() -> None:
+    storage_bundle = FakeStorageBundle()
+    storage_bundle.chat_session_repository.existing_sessions["session-owned"] = {
+        "session_id": "session-owned",
+        "user_id": 202,
+    }
+    coordinator = ChatPersistenceCoordinator(storage_bundle=storage_bundle)
+
+    import pytest
+
+    with pytest.raises(PermissionError):
+        coordinator.start_exchange(
+            command=ChatCommand(
+                user_role="analyst",
+                message_text="Review this account.",
+                session_id="session-owned",
+                user_id=101,
+            ),
+            normalized_role="analyst",
+            normalized_text="Review this account.",
+        )
 
 
 def test_chat_persistence_coordinator_finishes_exchange_with_noop_result() -> None:

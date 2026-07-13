@@ -13,7 +13,10 @@ from backend.api.app import app
 def test_mcp_sdk_status_route_returns_stable_payload() -> None:
     client = TestClient(app)
 
-    response = client.get("/mcp/sdk-status")
+    response = client.get(
+        "/mcp/sdk-status",
+        headers={"x-demo-user": "admin_demo"},
+    )
 
     assert response.status_code == 200
 
@@ -24,3 +27,12 @@ def test_mcp_sdk_status_route_returns_stable_payload() -> None:
     assert payload["transport_mode"] == "registry"
     assert payload["server_runtime"] == "preview"
     assert payload["sdk_tool_names"] == ["knowledge.search"]
+
+
+def test_mcp_sdk_status_route_requires_admin_principal() -> None:
+    response = TestClient(app).get(
+        "/mcp/sdk-status",
+        headers={"x-demo-user": "analyst_demo"},
+    )
+
+    assert response.status_code == 403

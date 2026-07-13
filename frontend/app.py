@@ -1,6 +1,8 @@
 import streamlit as st
 
+from frontend.services.auth import post_login
 from frontend.services.chat import (
+    DEFAULT_API_BASE_URL,
     ChatApiResponse,
     ChatApiToolInvocationResult,
     post_chat_message,
@@ -13,6 +15,8 @@ from frontend.services.session import (
     ROLE_OPTIONS,
     get_active_chat_session_id,
     get_active_role,
+    get_auth_token,
+    set_auth_token,
     set_active_chat_session_id,
     set_active_role,
 )
@@ -25,14 +29,36 @@ st.set_page_config(
 )
 
 st.title("Trading and Risk Agentic Platform")
-st.caption("Frontend shell with demo login and role-switch entry.")
+st.caption("Authenticated frontend for chat, retrieval, risk, trading, and operations.")
 
 with st.sidebar:
-    st.subheader("Demo Access")
-    selected_role = st.selectbox("Choose role", ROLE_OPTIONS, index=ROLE_OPTIONS.index(get_active_role()))
-    if st.button("Enter Workspace", use_container_width=True):
-        set_active_role(selected_role)
-        st.success(f"Active role set to: {selected_role}")
+    st.subheader("Workspace Login")
+    login_username = st.text_input("Username", value="analyst_demo")
+    login_password = st.text_input("Password", type="password")
+    if st.button("Sign In", use_container_width=True):
+        try:
+            auth_response = post_login(
+                username=login_username,
+                password=login_password,
+                api_base_url=DEFAULT_API_BASE_URL,
+            )
+            set_auth_token(auth_response.access_token)
+            set_active_role(auth_response.roles[0] if auth_response.roles else ROLE_OPTIONS[0])
+            set_active_chat_session_id(None)
+            st.success(f"Signed in as {auth_response.display_name}.")
+        except RuntimeError as exc:
+            st.error(str(exc))
+
+    if get_auth_token() is None:
+        st.info("Sign in to access the workspace.")
+        st.stop()
+
+    selected_role = st.selectbox(
+        "Active role context",
+        ROLE_OPTIONS,
+        index=ROLE_OPTIONS.index(get_active_role()),
+    )
+    set_active_role(selected_role)
 
 st.markdown("### Current Focus")
 st.write(
@@ -89,6 +115,7 @@ if submitted:
             user_role=get_active_role(),
             message_text=message_text,
             session_id=get_active_chat_session_id(),
+            access_token=get_auth_token(),
         )
         set_active_chat_session_id(chat_response.session_id)
         st.success("Chat response received.")
@@ -152,7 +179,10 @@ with tool_col1:
 
     if knowledge_submitted:
         try:
-            knowledge_result = post_knowledge_search(query=knowledge_query)
+            knowledge_result = post_knowledge_search(
+                query=knowledge_query,
+                access_token=get_auth_token(),
+            )
             render_tool_invocation_result("Knowledge search", knowledge_result)
         except RuntimeError as exc:
             st.error(str(exc))
@@ -170,7 +200,10 @@ with tool_col1:
 
     if risk_submitted:
         try:
-            risk_result = post_risk_score_account(query=risk_query)
+            risk_result = post_risk_score_account(
+                query=risk_query,
+                access_token=get_auth_token(),
+            )
             render_tool_invocation_result("Risk score account", risk_result)
         except RuntimeError as exc:
             st.error(str(exc))
@@ -189,7 +222,10 @@ with tool_col2:
 
     if trade_submitted:
         try:
-            trade_result = post_trade_query_metrics(query=trade_query)
+            trade_result = post_trade_query_metrics(
+                query=trade_query,
+                access_token=get_auth_token(),
+            )
             render_tool_invocation_result("Trade query metrics", trade_result)
         except RuntimeError as exc:
             st.error(str(exc))
@@ -207,7 +243,10 @@ with tool_col2:
 
     if ops_submitted:
         try:
-            ops_result = post_ops_create_alert_or_action(query=ops_query)
+            ops_result = post_ops_create_alert_or_action(
+                query=ops_query,
+                access_token=get_auth_token(),
+            )
             render_tool_invocation_result("Ops create alert or action", ops_result)
         except RuntimeError as exc:
             st.error(str(exc))

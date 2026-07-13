@@ -35,3 +35,4 @@ def test_build_storage_bundle_creates_database_backed_repositories() -> None:
     assert storage_bundle.knowledge_chunk_repository.executor is storage_bundle.database_client
     assert storage_bundle.chunk_embedding_repository.executor is storage_bundle.database_client
     assert storage_bundle.knowledge_search_repository.executor is storage_bundle.database_client
+    assert storage_bundle.identity_repository.executor is storage_bundle.database_client

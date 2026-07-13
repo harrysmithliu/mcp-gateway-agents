@@ -98,6 +98,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
+        auth_service=original_container.auth_service,
     )
 
     try:
@@ -117,10 +118,17 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
     assert fake_agent_service.received_commands == [
         ChatCommand(
             user_role="analyst",
-            message_text="Search the policy playbook.",
-            session_id=None,
-            recent_messages=[],
-        )
+                message_text="Search the policy playbook.",
+                session_id=None,
+                recent_messages=[],
+                user_id=1,
+                authorization_context={
+                    "user_id": 1,
+                    "username": "analyst_demo",
+                    "roles": ("analyst",),
+                    "access_level": "internal",
+                },
+            )
     ]
 
 
@@ -163,6 +171,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
+        auth_service=original_container.auth_service,
     )
 
     try:
@@ -178,8 +187,16 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
     assert response.json()["response_payload"]["source"] == "fake-container"
     assert fake_registry.invocations == [
         (
-            "trade.query_metrics",
-            {"query": "trade wallet volume gamma"},
+                "trade.query_metrics",
+                {
+                    "query": "trade wallet volume gamma",
+                    "authorization_context": {
+                        "user_id": 1,
+                        "username": "analyst_demo",
+                        "roles": ("analyst",),
+                        "access_level": "internal",
+                    },
+                },
         )
     ]
 
@@ -221,6 +238,7 @@ def test_account_investigation_route_uses_app_level_service_dependency() -> None
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
+        auth_service=original_container.auth_service,
     )
 
     try:

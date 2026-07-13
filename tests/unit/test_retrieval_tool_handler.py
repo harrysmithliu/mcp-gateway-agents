@@ -106,3 +106,20 @@ def test_knowledge_search_tool_exposes_retrieval_failure_status() -> None:
         result.response_payload["retrieval_metadata"]["failure_reason"]
         == "ConnectionError"
     )
+
+
+def test_knowledge_search_prefers_server_authorization_context_over_client_filter() -> None:
+    retrieval_service = FakeRetrievalService()
+    registry = build_default_registry(retrieval_service=retrieval_service)
+
+    registry.invoke(
+        tool_name="knowledge.search",
+        request_payload={
+            "query": "policy evidence",
+            "access_level": "restricted",
+            "authorization_context": {"access_level": "internal"},
+        },
+    )
+
+    assert retrieval_service.received_query is not None
+    assert retrieval_service.received_query.access_level == "internal"

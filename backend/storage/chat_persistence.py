@@ -41,6 +41,12 @@ class ChatPersistenceExchange:
     redis_context_persistence_error: str | None = None
     write_order: list[str] = field(default_factory=list)
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
+    user_id: int | None = None
+    browser_session_id: str | None = None
+
+
+class ChatSessionAccessError(PermissionError):
+    """Raised when a chat session belongs to a different authenticated user."""
 
 
 @dataclass(slots=True)
@@ -107,14 +113,31 @@ class ChatPersistenceCoordinator:
             return
 
         try:
+            if exchange.user_id is not None and exchange.requested_session_id is not None:
+                existing_session = self.storage_bundle.chat_session_repository.get_session(
+                    exchange.effective_session_id
+                )
+                if existing_session is not None:
+                    owner_id = existing_session.get("user_id")
+                    if owner_id is not None and int(owner_id) != exchange.user_id:
+                        raise ChatSessionAccessError("Chat session belongs to another user.")
+                    if owner_id is None:
+                        self.storage_bundle.chat_session_repository.claim_session(
+                            exchange.effective_session_id,
+                            exchange.user_id,
+                        )
+                    exchange.session_persisted = True
+                    return
             self.storage_bundle.chat_session_repository.create_session(
                 ChatSessionRecord(
                     session_id=exchange.effective_session_id,
-                    user_id=None,
+                    user_id=exchange.user_id,
                     session_title=self.build_session_title(exchange.normalized_text),
                 )
             )
             exchange.session_persisted = True
+        except ChatSessionAccessError:
+            raise
         except Exception:
             exchange.session_persisted = False
             exchange.session_persistence_error = "chat_session_write_failed"
@@ -219,11 +242,19 @@ class ChatPersistenceCoordinator:
             exchange.redis_context_persistence_error = "redis_context_store_unavailable"
             return
 
-        redis_write_succeeded = self.redis_chat_context_store.append_message(
-            session_id=exchange.effective_session_id,
-            role=role,
-            content=content,
-        )
+        if exchange.user_id is None:
+            redis_write_succeeded = self.redis_chat_context_store.append_message(
+                session_id=exchange.effective_session_id,
+                role=role,
+                content=content,
+            )
+        else:
+            redis_write_succeeded = self.redis_chat_context_store.append_message(
+                session_id=exchange.effective_session_id,
+                role=role,
+                content=content,
+                user_id=exchange.user_id,
+            )
         if redis_write_succeeded:
             exchange.redis_context_persisted = True
             return
@@ -249,7 +280,7 @@ class ChatPersistenceCoordinator:
                         tool_call_id=self.build_message_id(),
                         session_id=exchange.effective_session_id,
                         message_id=exchange.user_message_id,
-                        actor_user_id=None,
+                        actor_user_id=exchange.user_id,
                         tool_namespace=tool_invocation_result.domain,
                         tool_name=tool_invocation_result.tool_name,
                         call_status=tool_invocation_result.invocation_status,
@@ -278,7 +309,7 @@ class ChatPersistenceCoordinator:
             self.storage_bundle.audit_event_repository.create_audit_event(
                 AuditEventRecord(
                     event_id=self.build_message_id(),
-                    actor_user_id=None,
+                    actor_user_id=exchange.user_id,
                     event_type="chat_exchange_completed",
                     event_summary="Chat exchange completed with persisted artifacts.",
                     event_payload={
@@ -358,7 +389,7 @@ class ChatPersistenceCoordinator:
                         alert_id=self.build_message_id(),
                         session_id=exchange.effective_session_id,
                         message_id=exchange.assistant_message_id,
-                        actor_user_id=None,
+                        actor_user_id=exchange.user_id,
                         alert_type=action_type,
                         severity=severity,
                         status="open",
@@ -392,6 +423,8 @@ class ChatPersistenceCoordinator:
             requested_session_id=command.session_id,
             effective_session_id=self.build_session_id(command.session_id),
             recent_messages=list(command.recent_messages),
+            user_id=command.user_id,
+            browser_session_id=None,
         )
         self.ensure_chat_session(exchange)
         self.append_user_message(exchange)

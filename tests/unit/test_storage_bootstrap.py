@@ -20,5 +20,9 @@ def test_build_local_sql_plan_returns_sorted_migrations_and_seeds() -> None:
         "006_upgrade_chunk_embeddings_to_384.sql",
         "007_create_risk_batch_score_tables.sql",
         "008_create_risk_alert_status_events.sql",
+        "009_create_auth_tables.sql",
     ]
-    assert [path.name for path in plan.seeds] == ["001_seed_roles.sql"]
+    assert [path.name for path in plan.seeds] == [
+        "001_seed_roles.sql",
+        "002_seed_demo_users.sql",
+    ]

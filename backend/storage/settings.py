@@ -15,6 +15,16 @@ class Settings:
         "postgresql://postgres:postgres@localhost:5432/mcp_gateway_agents",
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    auth_mode: str = os.getenv("AUTH_MODE", "local_jwt")
+    auth_jwt_secret: str = os.getenv("AUTH_JWT_SECRET", "")
+    auth_jwt_issuer: str = os.getenv("AUTH_JWT_ISSUER", "mcp-gateway-agents")
+    auth_jwt_audience: str = os.getenv("AUTH_JWT_AUDIENCE", "mcp-gateway-agents")
+    auth_access_token_ttl_seconds: int = int(
+        os.getenv("AUTH_ACCESS_TOKEN_TTL_SECONDS", "1800")
+    )
+    auth_allow_multiple_identities: bool = os.getenv(
+        "AUTH_ALLOW_MULTI_IDENTITY", "false"
+    ).lower() in {"1", "true", "yes", "on"}
     embedding_provider: str = os.getenv(
         "EMBEDDING_PROVIDER",
         "local_sentence_transformer",

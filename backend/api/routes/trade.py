@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.api.dependencies import get_application_container
-from backend.auth.rbac import DemoUser, Role, require_roles
+from backend.auth.dependencies import require_principal_roles
+from backend.auth.models import IdentityPrincipal
+from backend.auth.rbac import Role
 
 router = APIRouter(tags=["trade"])
 
@@ -12,9 +14,9 @@ router = APIRouter(tags=["trade"])
 def get_trade_metrics_by_account(
     account_id: str,
     user: Annotated[
-        DemoUser,
+        IdentityPrincipal,
         Depends(
-            require_roles(
+            require_principal_roles(
                 Role.ANALYST,
                 Role.RISK_OPERATOR,
                 Role.SUPERVISOR,

@@ -24,20 +24,23 @@ class RedisChatContextStore:
         redis = self._import_redis()
         return redis.Redis.from_url(self.redis_url, decode_responses=True)
 
-    def _build_key(self, session_id: str) -> str:
-        return f"{self.key_prefix}:{session_id}"
+    def _build_key(self, session_id: str, user_id: int | None = None) -> str:
+        if user_id is None:
+            return f"{self.key_prefix}:{session_id}"
+        return f"{self.key_prefix}:user:{user_id}:{session_id}"
 
     def load_recent_messages(
         self,
         session_id: str | None,
         limit: int | None = None,
+        user_id: int | None = None,
     ) -> list[ChatHistoryMessage]:
         if not session_id:
             return []
 
         try:
             client = self._get_client()
-            raw_messages = client.lrange(self._build_key(session_id), 0, -1)
+            raw_messages = client.lrange(self._build_key(session_id, user_id), 0, -1)
         except Exception:
             return []
 
@@ -63,14 +66,16 @@ class RedisChatContextStore:
         session_id: str | None,
         role: str,
         content: str,
+        user_id: int | None = None,
     ) -> bool:
         if not session_id:
             return False
 
         try:
             client = self._get_client()
+            key = self._build_key(session_id, user_id)
             client.rpush(
-                self._build_key(session_id),
+                key,
                 json.dumps(
                     {
                         "role": role,
@@ -78,7 +83,7 @@ class RedisChatContextStore:
                     }
                 ),
             )
-            client.ltrim(self._build_key(session_id), -self.max_messages, -1)
+            client.ltrim(key, -self.max_messages, -1)
             return True
         except Exception:
             return False

@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from fastapi import Request
 
 from backend.agent.service import AgentService
+from backend.auth.passwords import PasswordService
+from backend.auth.service import AuthService
+from backend.auth.tokens import JWTTokenService
 from backend.guardrails.policy import GuardrailPolicy
 from backend.agent.ports import ToolGatewayPort
 from backend.mcp_gateway.registry import build_default_registry
@@ -46,6 +49,7 @@ class ApplicationContainer:
     storage_bundle: StorageBundle
     chat_persistence_coordinator: ChatPersistenceCoordinator
     redis_chat_context_store: RedisChatContextStore
+    auth_service: AuthService
 
 
 def build_application_container() -> ApplicationContainer:
@@ -57,6 +61,17 @@ def build_application_container() -> ApplicationContainer:
     trade_service = TradeService()
     operations_service = OperationsService()
     storage_bundle = build_storage_bundle(settings)
+    auth_service = AuthService(
+        identity_store=storage_bundle.identity_repository,
+        password_service=PasswordService(),
+        token_service=JWTTokenService(
+            secret=settings.auth_jwt_secret or "local-development-secret-change-me-32-bytes",
+            issuer=settings.auth_jwt_issuer,
+            audience=settings.auth_jwt_audience,
+            ttl_seconds=settings.auth_access_token_ttl_seconds,
+        ),
+        allow_multiple_identities=settings.auth_allow_multiple_identities,
+    )
     retrieval_service = build_retrieval_service(
         settings=settings,
         knowledge_search_repository=storage_bundle.knowledge_search_repository,
@@ -113,6 +128,7 @@ def build_application_container() -> ApplicationContainer:
         storage_bundle=storage_bundle,
         chat_persistence_coordinator=chat_persistence_coordinator,
         redis_chat_context_store=redis_chat_context_store,
+        auth_service=auth_service,
     )
 
 
@@ -149,3 +165,7 @@ def get_ops_workflow_service(request: Request) -> OpsWorkflowService:
 
 def get_mcp_sdk_adapter(request: Request) -> MCPSDKAdapter:
     return get_application_container(request).mcp_sdk_adapter
+
+
+def get_auth_service(request: Request) -> AuthService:
+    return get_application_container(request).auth_service

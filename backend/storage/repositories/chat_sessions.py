@@ -25,3 +25,26 @@ class ChatSessionRepository:
         )
         self.executor.execute(statement)
         return statement
+
+    def get_session(self, session_id: str) -> dict[str, object] | None:
+        rows = self.executor.fetch_all(
+            SQLStatement(
+                sql=(
+                    "SELECT session_id, user_id, session_title "
+                    "FROM convo.chat_sessions WHERE session_id = %(session_id)s"
+                ),
+                params={"session_id": session_id},
+            )
+        )
+        return rows[0] if rows else None
+
+    def claim_session(self, session_id: str, user_id: int) -> SQLStatement:
+        statement = SQLStatement(
+            sql=(
+                "UPDATE convo.chat_sessions SET user_id = %(user_id)s, updated_at = NOW() "
+                "WHERE session_id = %(session_id)s AND user_id IS NULL"
+            ),
+            params={"session_id": session_id, "user_id": user_id},
+        )
+        self.executor.execute(statement)
+        return statement

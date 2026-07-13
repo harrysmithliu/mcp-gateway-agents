@@ -2,8 +2,8 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    user_role: str = Field(..., min_length=1)
     message_text: str = Field(..., min_length=1)
+    user_role: str = Field(default="analyst", min_length=1)
     session_id: str | None = None
 
     class RecentMessageRequest(BaseModel):

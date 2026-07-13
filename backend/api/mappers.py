@@ -1,15 +1,26 @@
 from backend.agent.models import AgentResponse, ChatCommand, ChatHistoryMessage
+from backend.auth.models import IdentityPrincipal
+from backend.auth.context import AuthorizationContext
 from backend.agent.ports import ToolGatewayPort
 from backend.api.schemas.chat import ChatRequest, ChatResponse
 from backend.mcp_gateway.models import ToolInvocationResult
 from backend.mcp_gateway.registry import ToolRegistry
 
 
-def build_chat_command(request: ChatRequest) -> ChatCommand:
+def build_chat_command(
+    request: ChatRequest,
+    principal: IdentityPrincipal | None = None,
+) -> ChatCommand:
     return ChatCommand(
-        user_role=request.user_role,
+        user_role=principal.primary_role if principal is not None else request.user_role,
         message_text=request.message_text,
         session_id=request.session_id,
+        user_id=principal.user_id if principal is not None else None,
+        authorization_context=(
+            AuthorizationContext.from_principal(principal).to_payload()
+            if principal is not None
+            else None
+        ),
         recent_messages=[
             ChatHistoryMessage(
                 role=recent_message.role,

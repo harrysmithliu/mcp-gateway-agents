@@ -8,6 +8,7 @@ from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingReposito
 from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
 from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
+from backend.storage.repositories.identity import IdentityRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
 from backend.storage.repositories.risk_alert_status_events import (
     RiskAlertStatusEventRepository,
@@ -34,6 +35,7 @@ class StorageBundle:
     knowledge_chunk_repository: KnowledgeChunkRepository
     chunk_embedding_repository: ChunkEmbeddingRepository
     knowledge_search_repository: KnowledgeSearchRepository
+    identity_repository: IdentityRepository
 
 
 def build_storage_bundle(settings: Settings) -> StorageBundle:
@@ -55,4 +57,5 @@ def build_storage_bundle(settings: Settings) -> StorageBundle:
         knowledge_chunk_repository=KnowledgeChunkRepository(executor=database_client),
         chunk_embedding_repository=ChunkEmbeddingRepository(executor=database_client),
         knowledge_search_repository=KnowledgeSearchRepository(executor=database_client),
+        identity_repository=IdentityRepository(executor=database_client),
     )

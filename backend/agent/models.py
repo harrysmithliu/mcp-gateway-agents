@@ -28,6 +28,8 @@ class ChatCommand:
     message_text: str
     session_id: str | None = None
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
+    user_id: int | None = None
+    authorization_context: dict[str, object] | None = None
 
 
 @dataclass(slots=True)
