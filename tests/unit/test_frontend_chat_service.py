@@ -35,7 +35,14 @@ def test_post_chat_message_parses_session_id(monkeypatch) -> None:
                     "excerpt": "Escalate suspicious activity.",
                 }
             ],
-            "planner_result": None,
+            "planner_result": {
+                "planner_source": "langchain_model",
+                "retrieval_status": "completed",
+                "retrieval_source": "postgresql_pgvector",
+                "retrieval_result_count": 3,
+                "grounded_chunk_count": 2,
+                "grounding_truncated": True,
+            },
         }
 
     monkeypatch.setattr("frontend.services.chat._post_json", fake_post_json)
@@ -50,3 +57,9 @@ def test_post_chat_message_parses_session_id(monkeypatch) -> None:
     assert response.citations[0].title == "Trading Policy"
     assert response.citations[0].chunk_index == 2
     assert response.citations[0].score == 0.91
+    assert response.planner_result is not None
+    assert response.planner_result.retrieval_status == "completed"
+    assert response.planner_result.retrieval_source == "postgresql_pgvector"
+    assert response.planner_result.retrieval_result_count == 3
+    assert response.planner_result.grounded_chunk_count == 2
+    assert response.planner_result.grounding_truncated is True

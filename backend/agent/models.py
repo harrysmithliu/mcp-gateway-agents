@@ -46,6 +46,11 @@ class PlannerResult:
     model_provider: str | None = None
     model_name: str | None = None
     latency_ms: int = 0
+    retrieval_status: str | None = None
+    retrieval_source: str | None = None
+    retrieval_result_count: int = 0
+    grounded_chunk_count: int = 0
+    grounding_truncated: bool = False
 
 
 @dataclass(slots=True)

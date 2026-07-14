@@ -67,3 +67,27 @@ def test_planner_payload_uses_real_retrieval_context_when_available() -> None:
     assert payload["retrieval_context"]["retrieval_source"] == "postgresql_pgvector"
     assert "data/trading.md" in payload["planner_prompt"]
     assert "score=0.91" in payload["planner_prompt"]
+    retrieval_context = payload["retrieval_context"]
+    assert retrieval_context["grounding"]["included_chunk_count"] == 1
+    assert retrieval_context["retrieval_metadata"]["status"] == "completed"
+
+
+def test_planner_payload_does_not_fallback_to_preview_when_retrieval_fails() -> None:
+    class FailingRetrievalService:
+        def retrieve(self, _query):
+            raise RuntimeError("retrieval failed")
+
+        def build_context(self, **_kwargs):
+            raise AssertionError("preview fallback must not hide retrieval failure")
+
+    agent_service = AgentService(retrieval_service=FailingRetrievalService())
+
+    payload = agent_service.build_langchain_planner_payload(
+        normalized_role="analyst",
+        normalized_text="Search policy evidence.",
+        registry=build_default_registry(),
+    )
+
+    retrieval_context = payload["retrieval_context"]
+    assert retrieval_context["retrieval_metadata"]["status"] == "unavailable"
+    assert retrieval_context["retrieved_chunks"] == []

@@ -37,6 +37,11 @@ class ChatApiPlannerResult:
     selected_tool_names: list[str] = field(default_factory=list)
     used_fallback: bool = False
     fallback_reason: str | None = None
+    retrieval_status: str | None = None
+    retrieval_source: str | None = None
+    retrieval_result_count: int = 0
+    grounded_chunk_count: int = 0
+    grounding_truncated: bool = False
 
 
 @dataclass(slots=True)
@@ -147,6 +152,19 @@ def post_chat_message(
                     response_payload["planner_result"].get("used_fallback", False)
                 ),
                 fallback_reason=response_payload["planner_result"].get("fallback_reason"),
+                retrieval_status=response_payload["planner_result"].get("retrieval_status"),
+                retrieval_source=response_payload["planner_result"].get("retrieval_source"),
+                retrieval_result_count=int(
+                    response_payload["planner_result"].get("retrieval_result_count", 0)
+                    or 0
+                ),
+                grounded_chunk_count=int(
+                    response_payload["planner_result"].get("grounded_chunk_count", 0)
+                    or 0
+                ),
+                grounding_truncated=bool(
+                    response_payload["planner_result"].get("grounding_truncated", False)
+                ),
             )
             if response_payload.get("planner_result") is not None
             else None

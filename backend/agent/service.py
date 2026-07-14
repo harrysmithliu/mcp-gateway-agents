@@ -223,9 +223,17 @@ class AgentService:
                 return retrieve(
                     RetrievalQuery(text=normalized_text, top_k=2)
                 ).to_payload()
-            except RuntimeError:
-                # Standalone unit tests may use an intentionally unconfigured service.
-                pass
+            except Exception as exc:
+                return {
+                    "rag_enabled": False,
+                    "retrieval_source": "postgresql_pgvector",
+                    "retrieved_chunks": [],
+                    "citations": [],
+                    "retrieval_metadata": {
+                        "status": "unavailable",
+                        "failure_reason": type(exc).__name__,
+                    },
+                }
         return self.retrieval_service.build_context(
             normalized_text=normalized_text,
             tool_gateway=registry,
@@ -332,6 +340,7 @@ class AgentService:
             session_id=session_id,
             recent_messages=recent_messages,
         )
+        grounding_trace = self._build_planner_grounding_trace(planner_payload)
 
         if self.planner_override_output is not None:
             candidate_tool_names = self.extract_langchain_planner_output_candidates(
@@ -349,6 +358,7 @@ class AgentService:
                     raw_output_text=self.planner_override_output,
                     candidate_tool_names=candidate_tool_names,
                     selected_tool_names=selected_tool_names,
+                    **grounding_trace,
                 )
 
         planner_model = self.init_langchain_chat_model()
@@ -379,6 +389,7 @@ class AgentService:
                         raw_output_text=planner_decision.model_dump_json(),
                         candidate_tool_names=candidate_tool_names,
                         selected_tool_names=selected_tool_names,
+                        **grounding_trace,
                     )
 
                 fallback_reason = (
@@ -413,6 +424,7 @@ class AgentService:
                             raw_output_text=planner_output_text,
                             candidate_tool_names=candidate_tool_names,
                             selected_tool_names=selected_tool_names,
+                            **grounding_trace,
                         )
 
                     fallback_reason = "langchain_output_unusable"
@@ -447,7 +459,29 @@ class AgentService:
             selected_tool_names=fallback_tool_names,
             used_fallback=True,
             fallback_reason=fallback_reason,
+            **grounding_trace,
         )
+
+    @staticmethod
+    def _build_planner_grounding_trace(
+        planner_payload: dict[str, object],
+    ) -> dict[str, object]:
+        retrieval_context = planner_payload.get("retrieval_context")
+        if not isinstance(retrieval_context, dict):
+            return {}
+        metadata = retrieval_context.get("retrieval_metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        grounding = retrieval_context.get("grounding")
+        grounding = grounding if isinstance(grounding, dict) else {}
+        return {
+            "retrieval_status": metadata.get("status"),
+            "retrieval_source": retrieval_context.get("retrieval_source"),
+            "retrieval_result_count": int(metadata.get("result_count", 0) or 0),
+            "grounded_chunk_count": int(
+                grounding.get("included_chunk_count", 0) or 0
+            ),
+            "grounding_truncated": bool(grounding.get("truncated", False)),
+        }
 
     @staticmethod
     def _build_planner_latency_ms(started_at: float) -> int:
@@ -669,6 +703,13 @@ class AgentService:
         seen_citations: set[tuple[object, ...]] = set()
         for result in tool_invocation_results:
             if result.tool_name != "knowledge.search":
+                continue
+            if result.invocation_status != "completed":
+                continue
+            retrieval_metadata = result.response_payload.get("retrieval_metadata")
+            if isinstance(retrieval_metadata, dict) and retrieval_metadata.get(
+                "status"
+            ) not in {None, "completed"}:
                 continue
             raw_citations = result.response_payload.get("citations")
             if not isinstance(raw_citations, list):

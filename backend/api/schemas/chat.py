@@ -46,6 +46,11 @@ class ChatResponse(BaseModel):
         selected_tool_names: list[str]
         used_fallback: bool
         fallback_reason: str | None = None
+        retrieval_status: str | None = None
+        retrieval_source: str | None = None
+        retrieval_result_count: int = 0
+        grounded_chunk_count: int = 0
+        grounding_truncated: bool = False
 
     session_id: str | None = None
     reply_text: str

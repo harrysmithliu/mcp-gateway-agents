@@ -140,5 +140,5 @@ def test_build_langchain_planner_prompt_embeds_contract_and_context() -> None:
     )
 
     assert "Available tools: knowledge.search, risk.score_account." in planner_prompt
-    assert "Retrieval context: none." in planner_prompt
+    assert "Retrieval context status: empty;" in planner_prompt
     assert "Guardrail context:" in planner_prompt

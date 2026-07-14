@@ -148,6 +148,18 @@ if submitted:
             st.caption(f"Session ID: `{chat_response.session_id}`")
         st.write(chat_response.reply_text)
 
+        if chat_response.planner_result is not None:
+            st.caption("Planner Retrieval Trace")
+            st.write(
+                {
+                    "status": chat_response.planner_result.retrieval_status,
+                    "source": chat_response.planner_result.retrieval_source,
+                    "result_count": chat_response.planner_result.retrieval_result_count,
+                    "grounded_chunk_count": chat_response.planner_result.grounded_chunk_count,
+                    "truncated": chat_response.planner_result.grounding_truncated,
+                }
+            )
+
         if chat_response.tool_names:
             st.caption("Suggested tools")
             st.write(chat_response.tool_names)

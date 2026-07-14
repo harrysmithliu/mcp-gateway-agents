@@ -69,6 +69,11 @@ def test_chat_route_returns_structured_response() -> None:
         "selected_tool_names",
         "used_fallback",
         "fallback_reason",
+        "retrieval_status",
+        "retrieval_source",
+        "retrieval_result_count",
+        "grounded_chunk_count",
+        "grounding_truncated",
     }
 
 
