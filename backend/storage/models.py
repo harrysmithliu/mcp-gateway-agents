@@ -142,3 +142,34 @@ class KnowledgeSearchRecord:
     chunk_text: str
     chunk_metadata: dict[str, object] = field(default_factory=dict)
     similarity_score: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeIngestionRunRecord:
+    run_id: str
+    run_mode: str
+    status: str
+    requested_by_user_id: int | None = None
+    source_count: int = 0
+    document_count: int = 0
+    chunk_count: int = 0
+    embedding_count: int = 0
+    embedding_provider: str | None = None
+    embedding_model_name: str | None = None
+    vector_dimensions: int | None = None
+    error_type: str | None = None
+    error_summary: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeIngestionSourceRecord:
+    run_id: str
+    source_id: str
+    title: str
+    source_path: str
+    checksum_sha256: str
+    byte_size: int
+    content_type: str
+    access_level: str
+    jurisdiction: str | None = None
+    tags: list[str] = field(default_factory=list)

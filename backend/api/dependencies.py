@@ -17,6 +17,10 @@ from backend.services.audit import AuditService
 from backend.services.account_investigation import AccountInvestigationService
 from backend.services.accounts import AccountDomainService
 from backend.services.knowledge import KnowledgeService
+from backend.services.knowledge_ingestion import (
+    KnowledgeIngestionService,
+    build_knowledge_ingestion_service,
+)
 from backend.services.operations import OperationsService
 from backend.services.ops_workflow import OpsWorkflowService
 from backend.services.risk import RiskService
@@ -42,6 +46,7 @@ class ApplicationContainer:
     ops_workflow_service: OpsWorkflowService
     mcp_sdk_adapter: MCPSDKAdapter
     knowledge_service: KnowledgeService
+    knowledge_ingestion_service: KnowledgeIngestionService
     risk_service: RiskService
     risk_batch_score_service: RiskBatchScoreService
     trade_service: TradeService
@@ -75,6 +80,10 @@ def build_application_container() -> ApplicationContainer:
     retrieval_service = build_retrieval_service(
         settings=settings,
         knowledge_search_repository=storage_bundle.knowledge_search_repository,
+    )
+    knowledge_ingestion_service = build_knowledge_ingestion_service(
+        storage_bundle=storage_bundle,
+        settings=settings,
     )
     redis_chat_context_store = RedisChatContextStore(redis_url=settings.redis_url)
     chat_persistence_coordinator = ChatPersistenceCoordinator(
@@ -121,6 +130,7 @@ def build_application_container() -> ApplicationContainer:
             server_runtime=settings.mcp_server_runtime,
         ),
         knowledge_service=knowledge_service,
+        knowledge_ingestion_service=knowledge_ingestion_service,
         risk_service=risk_service,
         risk_batch_score_service=risk_batch_score_service,
         trade_service=trade_service,
@@ -169,3 +179,7 @@ def get_mcp_sdk_adapter(request: Request) -> MCPSDKAdapter:
 
 def get_auth_service(request: Request) -> AuthService:
     return get_application_container(request).auth_service
+
+
+def get_knowledge_ingestion_service(request: Request) -> KnowledgeIngestionService:
+    return get_application_container(request).knowledge_ingestion_service

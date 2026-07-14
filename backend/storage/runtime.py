@@ -7,6 +7,9 @@ from backend.storage.repositories.chat_sessions import ChatSessionRepository
 from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingRepository
 from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
+from backend.storage.repositories.knowledge_ingestion_runs import (
+    KnowledgeIngestionRunRepository,
+)
 from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 from backend.storage.repositories.identity import IdentityRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
@@ -37,6 +40,7 @@ class StorageBundle:
     knowledge_chunk_repository: KnowledgeChunkRepository
     chunk_embedding_repository: ChunkEmbeddingRepository
     knowledge_search_repository: KnowledgeSearchRepository
+    knowledge_ingestion_run_repository: KnowledgeIngestionRunRepository
     identity_repository: IdentityRepository
 
 
@@ -60,5 +64,8 @@ def build_storage_bundle(settings: Settings) -> StorageBundle:
         knowledge_chunk_repository=KnowledgeChunkRepository(executor=database_client),
         chunk_embedding_repository=ChunkEmbeddingRepository(executor=database_client),
         knowledge_search_repository=KnowledgeSearchRepository(executor=database_client),
+        knowledge_ingestion_run_repository=KnowledgeIngestionRunRepository(
+            executor=database_client
+        ),
         identity_repository=IdentityRepository(executor=database_client),
     )

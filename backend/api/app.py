@@ -6,6 +6,7 @@ from backend.api.routes.auth import router as auth_router
 from backend.api.routes.audit import router as audit_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.health import router as health_router
+from backend.api.routes.knowledge_ingestion import router as knowledge_ingestion_router
 from backend.api.routes.mcp import router as mcp_router
 from backend.api.routes.ops import router as ops_router
 from backend.api.routes.risk import router as risk_router
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(trade_router)
     app.include_router(tools_router)
     app.include_router(health_router)
+    app.include_router(knowledge_ingestion_router)
     return app
 
 

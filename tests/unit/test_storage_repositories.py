@@ -15,6 +15,8 @@ from backend.storage.models import (
     ChunkEmbeddingRecord,
     KnowledgeChunkRecord,
     KnowledgeDocumentRecord,
+    KnowledgeIngestionRunRecord,
+    KnowledgeIngestionSourceRecord,
     RiskAlertRecord,
     RiskAlertStatusEventRecord,
     RiskBatchScoreResultRecord,
@@ -27,6 +29,9 @@ from backend.storage.repositories.chat_sessions import ChatSessionRepository
 from backend.storage.repositories.chunk_embeddings import ChunkEmbeddingRepository
 from backend.storage.repositories.knowledge_chunks import KnowledgeChunkRepository
 from backend.storage.repositories.knowledge_documents import KnowledgeDocumentRepository
+from backend.storage.repositories.knowledge_ingestion_runs import (
+    KnowledgeIngestionRunRepository,
+)
 from backend.storage.repositories.knowledge_search import KnowledgeSearchRepository
 from backend.storage.repositories.risk_alerts import RiskAlertRepository
 from backend.storage.repositories.risk_alert_status_events import (
@@ -397,6 +402,65 @@ def test_knowledge_search_repository_builds_pgvector_similarity_query() -> None:
     assert records[0].chunk_id == "chunk-1"
     assert records[0].similarity_score == 0.91
     assert records[0].chunk_metadata == {"topic": "surveillance"}
+
+
+def test_knowledge_ingestion_run_repository_builds_lifecycle_and_manifest_statements() -> None:
+    executor = SequentialFetchFakeExecutor(
+        [
+            [{"run_id": "run-1", "status": "running"}],
+            [{"run_id": "run-1", "source_id": "kb-policy"}],
+        ]
+    )
+    repository = KnowledgeIngestionRunRepository(executor=executor)
+
+    create_statement = repository.create_run(
+        KnowledgeIngestionRunRecord(
+            run_id="run-1",
+            requested_by_user_id=4,
+            run_mode="manual_refresh",
+            status="running",
+        )
+    )
+    source_statement = repository.create_source(
+        KnowledgeIngestionSourceRecord(
+            run_id="run-1",
+            source_id="kb-policy",
+            title="Trading Policy",
+            source_path="data/knowledge_sources/trading.md",
+            checksum_sha256="a" * 64,
+            byte_size=128,
+            content_type="text/markdown",
+            access_level="internal",
+            tags=["policy"],
+        )
+    )
+    success_statement = repository.mark_succeeded(
+        run_id="run-1",
+        source_count=1,
+        document_count=1,
+        chunk_count=2,
+        embedding_count=2,
+        embedding_provider="local_sentence_transformer",
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        vector_dimensions=384,
+    )
+    failure_statement = repository.mark_failed(
+        run_id="run-1",
+        error_type="RuntimeError",
+        error_summary="embedding provider unavailable",
+    )
+    run = repository.get_run("run-1")
+    sources = repository.list_sources("run-1")
+
+    assert "INSERT INTO knowledge.ingestion_runs" in create_statement.sql
+    assert create_statement.params["status"] == "running"
+    assert "INSERT INTO knowledge.ingestion_run_sources" in source_statement.sql
+    assert source_statement.params["checksum_sha256"] == "a" * 64
+    assert "status = 'succeeded'" in success_statement.sql
+    assert success_statement.params["vector_dimensions"] == 384
+    assert "status = 'failed'" in failure_statement.sql
+    assert run == {"run_id": "run-1", "status": "running"}
+    assert sources == [{"run_id": "run-1", "source_id": "kb-policy"}]
 
 
 def test_risk_batch_score_repository_builds_run_and_result_statements() -> None:
