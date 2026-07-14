@@ -76,3 +76,43 @@ def test_build_retrieval_service_wires_embedding_runtime_and_repository() -> Non
     assert retrieval_service.embedding_config == build_embedding_config(settings)
     assert retrieval_service.embedding_provider is not None
     assert retrieval_service.knowledge_search_repository is repository
+    assert retrieval_service.runtime_status().state == "ready"
+
+
+def test_build_retrieval_service_can_be_disabled_without_building_provider() -> None:
+    settings = Settings(
+        retrieval_enabled=False,
+        embedding_provider="unknown",
+        embedding_model_name="disabled-model",
+        embedding_dimensions=4,
+    )
+
+    retrieval_service = build_retrieval_service(
+        settings,
+        KnowledgeSearchRepository(executor=object()),
+    )
+
+    status = retrieval_service.runtime_status()
+
+    assert status.state == "disabled"
+    assert status.enabled is False
+    assert status.reason == "disabled_by_configuration"
+
+
+def test_build_retrieval_service_contains_configuration_failure_without_startup_error() -> None:
+    settings = Settings(
+        embedding_provider="unknown",
+        embedding_model_name="invalid-model",
+        embedding_dimensions=4,
+    )
+
+    retrieval_service = build_retrieval_service(
+        settings,
+        KnowledgeSearchRepository(executor=object()),
+    )
+
+    status = retrieval_service.runtime_status()
+
+    assert status.state == "unavailable"
+    assert status.enabled is True
+    assert status.reason == "ValueError"

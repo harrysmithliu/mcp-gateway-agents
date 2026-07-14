@@ -40,8 +40,24 @@ def build_retrieval_service(
 ) -> RetrievalService:
     """Build the retrieval orchestrator with one shared runtime configuration."""
 
+    embedding_config = build_embedding_config(settings)
+    if not settings.retrieval_enabled:
+        return RetrievalService(
+            embedding_config=embedding_config,
+            enabled=False,
+        )
+
+    try:
+        embedding_provider = build_embedding_provider(settings)
+    except Exception as exc:
+        return RetrievalService(
+            embedding_config=embedding_config,
+            enabled=True,
+            runtime_error=type(exc).__name__,
+        )
+
     return RetrievalService(
-        embedding_config=build_embedding_config(settings),
-        embedding_provider=build_embedding_provider(settings),
+        embedding_config=embedding_config,
+        embedding_provider=embedding_provider,
         knowledge_search_repository=knowledge_search_repository,
     )

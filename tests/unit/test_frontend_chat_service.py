@@ -24,6 +24,17 @@ def test_post_chat_message_parses_session_id(monkeypatch) -> None:
             "tool_invocation_results": [],
             "evidence": [],
             "actions": [],
+            "citations": [
+                {
+                    "document_id": "doc-1",
+                    "title": "Trading Policy",
+                    "chunk_id": "chunk-1",
+                    "chunk_index": 2,
+                    "source_path": "data/trading.md",
+                    "score": 0.91,
+                    "excerpt": "Escalate suspicious activity.",
+                }
+            ],
             "planner_result": None,
         }
 
@@ -36,3 +47,6 @@ def test_post_chat_message_parses_session_id(monkeypatch) -> None:
 
     assert response.session_id == "session-frontend-001"
     assert response.tool_names == ["knowledge.search"]
+    assert response.citations[0].title == "Trading Policy"
+    assert response.citations[0].chunk_index == 2
+    assert response.citations[0].score == 0.91

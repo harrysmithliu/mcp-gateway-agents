@@ -20,3 +20,5 @@ def test_health_route_returns_public_health_payload() -> None:
     assert payload["status"] == "ok"
     assert isinstance(payload["app_name"], str)
     assert isinstance(payload["environment"], str)
+    assert payload["retrieval"]["state"] in {"ready", "disabled", "unavailable"}
+    assert isinstance(payload["retrieval"]["enabled"], bool)

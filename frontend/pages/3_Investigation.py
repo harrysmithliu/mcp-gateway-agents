@@ -1,6 +1,8 @@
 import streamlit as st
 
 from frontend.components.auth import render_api_error, require_authenticated_session
+from frontend.components.evidence import render_citation_panel
+from frontend.components.retrieval import render_retrieval_runtime_status
 from frontend.services.accounts import get_account_investigation, search_accounts
 from frontend.services.api import ApiError
 from frontend.services.chat import post_chat_message
@@ -18,6 +20,7 @@ st.title("Account Investigation")
 st.caption(
     f"Evidence workspace for {user.get('display_name', user.get('username', 'authenticated user'))}."
 )
+render_retrieval_runtime_status()
 
 with st.form("account_search_form"):
     search_query = st.text_input(
@@ -125,5 +128,6 @@ if finding_submitted:
         if chat_response.actions:
             st.markdown("**Recommended actions**")
             st.write(chat_response.actions)
+        render_citation_panel(chat_response.citations)
     except ApiError as exc:
         render_api_error(exc)

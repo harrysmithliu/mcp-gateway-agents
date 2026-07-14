@@ -74,6 +74,22 @@ class RetrievalMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class RetrievalRuntimeStatus:
+    """Safe application-level status for the configured retrieval capability."""
+
+    state: str
+    enabled: bool
+    vector_backend: str
+    provider: str | None = None
+    model_name: str | None = None
+    vector_dimensions: int | None = None
+    reason: str | None = None
+
+    def to_payload(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class RetrievalResult:
     """Planner-facing retrieval result contract shared by API and Agent layers."""
 

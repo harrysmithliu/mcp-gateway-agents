@@ -100,6 +100,41 @@ def test_retrieval_service_returns_disabled_empty_result_without_matches() -> No
     assert result.citations == []
     assert result.metadata.result_count == 0
     assert result.metadata.status == "empty"
+
+
+def test_retrieval_service_returns_disabled_result_when_runtime_is_disabled() -> None:
+    service = RetrievalService(
+        embedding_config=EmbeddingConfig(
+            provider="local_sentence_transformer",
+            model_name="disabled-model",
+            vector_dimensions=384,
+        ),
+        enabled=False,
+    )
+
+    result = service.retrieve(RetrievalQuery(text="policy evidence"))
+
+    assert result.rag_enabled is False
+    assert result.retrieved_chunks == []
+    assert result.metadata.status == "disabled"
+    assert result.metadata.failure_reason == "disabled_by_configuration"
+
+
+def test_retrieval_service_returns_unavailable_result_for_runtime_configuration_error() -> None:
+    service = RetrievalService(
+        embedding_config=EmbeddingConfig(
+            provider="unknown",
+            model_name="invalid-model",
+            vector_dimensions=4,
+        ),
+        runtime_error="ValueError",
+    )
+
+    result = service.retrieve(RetrievalQuery(text="policy evidence"))
+
+    assert result.rag_enabled is False
+    assert result.metadata.status == "unavailable"
+    assert result.metadata.failure_reason == "ValueError"
     assert result.metadata.latency_ms >= 0
 
 

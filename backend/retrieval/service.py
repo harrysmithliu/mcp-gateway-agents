@@ -9,6 +9,7 @@ from backend.retrieval.contracts import (
     RetrievalCitation,
     RetrievalContext,
     RetrievalMetadata,
+    RetrievalRuntimeStatus,
 )
 from backend.retrieval.embedding_provider import EmbeddingProvider
 from backend.retrieval.ingestion_models import EmbeddingConfig
@@ -27,18 +28,75 @@ logger = logging.getLogger(__name__)
 class RetrievalService:
     """Orchestrates query embedding, vector search, and citation mapping."""
 
-    vector_backend: str = "postgresql-pgvector"
+    vector_backend: str = "postgresql_pgvector"
     embedding_config: EmbeddingConfig | None = None
     embedding_provider: EmbeddingProvider | None = None
     knowledge_search_repository: KnowledgeSearchRepository | None = None
+    enabled: bool = True
+    runtime_error: str | None = None
 
     def describe(self) -> str:
         return "Retrieval service backed by configured embeddings and PostgreSQL/pgvector."
+
+    def runtime_status(self) -> RetrievalRuntimeStatus:
+        """Return the public, non-secret state of this retrieval runtime."""
+
+        if not self.enabled:
+            return RetrievalRuntimeStatus(
+                state="disabled",
+                enabled=False,
+                vector_backend=self.vector_backend,
+                provider=self._provider_name,
+                model_name=self._model_name,
+                vector_dimensions=self._vector_dimensions,
+                reason="disabled_by_configuration",
+            )
+
+        if self.runtime_error is not None:
+            return RetrievalRuntimeStatus(
+                state="unavailable",
+                enabled=True,
+                vector_backend=self.vector_backend,
+                provider=self._provider_name,
+                model_name=self._model_name,
+                vector_dimensions=self._vector_dimensions,
+                reason=self.runtime_error,
+            )
+
+        if (
+            self.embedding_config is None
+            or self.embedding_provider is None
+            or self.knowledge_search_repository is None
+        ):
+            return RetrievalRuntimeStatus(
+                state="unavailable",
+                enabled=True,
+                vector_backend=self.vector_backend,
+                provider=self._provider_name,
+                model_name=self._model_name,
+                vector_dimensions=self._vector_dimensions,
+                reason="runtime_not_configured",
+            )
+
+        return RetrievalRuntimeStatus(
+            state="ready",
+            enabled=True,
+            vector_backend=self.vector_backend,
+            provider=self._provider_name,
+            model_name=self._model_name,
+            vector_dimensions=self._vector_dimensions,
+        )
 
     def retrieve(self, query: RetrievalQuery) -> RetrievalContext:
         """Run one configured vector search and map rows into RAG contracts."""
 
         started_at = perf_counter()
+        if not self.enabled:
+            return self._build_runtime_disabled_result(query)
+
+        if self.runtime_error is not None:
+            return self._build_runtime_unavailable_result(query)
+
         if (
             self.embedding_config is None
             or self.embedding_provider is None
@@ -78,7 +136,7 @@ class RetrievalService:
 
         return RetrievalContext(
             rag_enabled=bool(records),
-            retrieval_source="postgresql_pgvector",
+            retrieval_source=self.vector_backend,
             retrieved_chunks=[self._build_retrieval_chunk(record) for record in records],
             citations=[self._build_retrieval_citation(record) for record in records],
             metadata=RetrievalMetadata(
@@ -92,6 +150,51 @@ class RetrievalService:
                 latency_ms=self._build_latency_ms(started_at),
             ),
         )
+
+    def _build_runtime_disabled_result(self, query: RetrievalQuery) -> RetrievalContext:
+        return RetrievalContext(
+            rag_enabled=False,
+            retrieval_source=self.vector_backend,
+            metadata=RetrievalMetadata(
+                provider=self._provider_name,
+                model_name=self._model_name,
+                vector_dimensions=self._vector_dimensions,
+                top_k=query.top_k,
+                filters=self._build_filter_payload(query),
+                status="disabled",
+                failure_reason="disabled_by_configuration",
+            ),
+        )
+
+    def _build_runtime_unavailable_result(
+        self,
+        query: RetrievalQuery,
+    ) -> RetrievalContext:
+        return RetrievalContext(
+            rag_enabled=False,
+            retrieval_source=self.vector_backend,
+            metadata=RetrievalMetadata(
+                provider=self._provider_name,
+                model_name=self._model_name,
+                vector_dimensions=self._vector_dimensions,
+                top_k=query.top_k,
+                filters=self._build_filter_payload(query),
+                status="unavailable",
+                failure_reason=self.runtime_error,
+            ),
+        )
+
+    @property
+    def _provider_name(self) -> str | None:
+        return self.embedding_config.provider if self.embedding_config else None
+
+    @property
+    def _model_name(self) -> str | None:
+        return self.embedding_config.model_name if self.embedding_config else None
+
+    @property
+    def _vector_dimensions(self) -> int | None:
+        return self.embedding_config.vector_dimensions if self.embedding_config else None
 
     @staticmethod
     def _build_latency_ms(started_at: float) -> int:

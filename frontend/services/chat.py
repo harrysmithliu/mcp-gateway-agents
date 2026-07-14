@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 
 from frontend.services.api import DEFAULT_API_BASE_URL, build_api_client
+from frontend.services.retrieval import (
+    RetrievalCitation,
+    parse_retrieval_citations,
+)
 
 
 @dataclass(slots=True)
@@ -44,6 +48,7 @@ class ChatApiResponse:
     tool_invocation_results: list[ChatApiToolInvocationResult] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
+    citations: list[RetrievalCitation] = field(default_factory=list)
     planner_result: ChatApiPlannerResult | None = None
 
 
@@ -127,6 +132,7 @@ def post_chat_message(
         ],
         evidence=response_payload.get("evidence", []),
         actions=response_payload.get("actions", []),
+        citations=parse_retrieval_citations(response_payload.get("citations")),
         planner_result=(
             ChatApiPlannerResult(
                 planner_source=str(response_payload["planner_result"]["planner_source"]),

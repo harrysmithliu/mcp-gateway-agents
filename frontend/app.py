@@ -1,6 +1,8 @@
 import streamlit as st
 
+from frontend.components.evidence import render_citation_panel, render_retrieval_evidence
 from frontend.services.auth import post_login
+from frontend.components.retrieval import render_retrieval_runtime_status
 from frontend.services.chat import (
     DEFAULT_API_BASE_URL,
     ChatApiResponse,
@@ -11,6 +13,7 @@ from frontend.services.chat import (
     post_risk_score_account,
     post_trade_query_metrics,
 )
+from frontend.services.retrieval import parse_retrieval_evidence
 from frontend.services.session import (
     ROLE_OPTIONS,
     clear_auth_session,
@@ -77,6 +80,8 @@ with st.sidebar:
     if st.button("Sign Out", use_container_width=True):
         clear_auth_session()
         st.rerun()
+
+render_retrieval_runtime_status(api_base_url=DEFAULT_API_BASE_URL)
 
 st.markdown("### Current Focus")
 st.write(
@@ -177,6 +182,7 @@ if submitted:
         if chat_response.actions:
             st.caption("Actions")
             st.write(chat_response.actions)
+        render_citation_panel(chat_response.citations)
     except RuntimeError as exc:
         st.error(str(exc))
 
@@ -204,6 +210,9 @@ with tool_col1:
                 access_token=get_auth_token(),
             )
             render_tool_invocation_result("Knowledge search", knowledge_result)
+            render_retrieval_evidence(
+                parse_retrieval_evidence(knowledge_result.response_payload),
+            )
         except RuntimeError as exc:
             st.error(str(exc))
 

@@ -25,6 +25,9 @@ class Settings:
     auth_allow_multiple_identities: bool = os.getenv(
         "AUTH_ALLOW_MULTI_IDENTITY", "false"
     ).lower() in {"1", "true", "yes", "on"}
+    retrieval_enabled: bool = os.getenv(
+        "RETRIEVAL_ENABLED", "true"
+    ).lower() in {"1", "true", "yes", "on"}
     embedding_provider: str = os.getenv(
         "EMBEDDING_PROVIDER",
         "local_sentence_transformer",
