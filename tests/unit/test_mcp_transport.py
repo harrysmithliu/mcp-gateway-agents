@@ -137,3 +137,37 @@ def test_sdk_failure_falls_back_to_registry() -> None:
 
     assert result.response_payload == {"source": "registry"}
     assert registry.registry_calls == ["knowledge.search"]
+
+
+def test_sdk_knowledge_disabled_payload_maps_to_unavailable_invocation() -> None:
+    registry = FakeRegistry()
+
+    class DisabledSDKClient:
+        async def call_tool(
+            self,
+            tool_name: str,
+            arguments: dict[str, object],
+            server_authorization_context: dict[str, object] | None = None,
+        ):
+            return type(
+                "FakeClientResult",
+                (),
+                {
+                    "structured_content": {
+                        "result_status": "disabled",
+                        "citations": [],
+                    },
+                    "is_error": False,
+                },
+            )()
+
+    router = MCPTransportRouter(
+        registry=registry,
+        transport_mode="sdk_stdio",
+        sdk_client=DisabledSDKClient(),
+    )
+
+    result = router.invoke("knowledge.search", {"query": "policy"})
+
+    assert result.invocation_status == "unavailable"
+    assert result.response_payload["result_status"] == "disabled"

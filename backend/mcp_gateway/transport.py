@@ -12,6 +12,7 @@ from backend.mcp_gateway.contracts import (
     build_mcp_tool_call,
     build_tool_invocation_result,
 )
+from backend.mcp_gateway.knowledge import build_knowledge_invocation_status
 
 
 logger = logging.getLogger(__name__)
@@ -93,10 +94,15 @@ class MCPTransportRouter:
             )
         )
         response_payload = dict(client_result.structured_content)
+        invocation_status = "failed" if client_result.is_error else "completed"
+        if tool_name == KNOWLEDGE_SEARCH_TOOL_NAME:
+            invocation_status = build_knowledge_invocation_status(
+                str(response_payload.get("result_status", "completed"))
+            )
         return build_tool_invocation_result(
             tool_call=tool_call,
             domain=tool_definition.domain,
-            invocation_status="failed" if client_result.is_error else "completed",
+            invocation_status=invocation_status,
             response_payload=response_payload,
             transport="sdk_stdio",
         )
