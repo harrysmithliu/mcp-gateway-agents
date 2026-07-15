@@ -45,6 +45,9 @@ class FakeIngestionRunRepository:
     def list_sources(self, _run_id):
         return [asdict(record) for record in self.source_records]
 
+    def get_latest_succeeded_run(self):
+        return None
+
 
 class FakeAuditRepository:
     def __init__(self) -> None:
@@ -70,6 +73,7 @@ def build_service(tmp_path: Path, running: bool = False):
     storage_bundle = SimpleNamespace(
         knowledge_ingestion_run_repository=run_repository,
         audit_event_repository=audit_repository,
+        database_client=object(),
     )
     service = KnowledgeIngestionService(
         storage_bundle=storage_bundle,
@@ -87,12 +91,13 @@ def build_service(tmp_path: Path, running: bool = False):
 def test_manual_refresh_persists_manifest_and_success_audit(tmp_path, monkeypatch) -> None:
     service, run_repository, audit_repository = build_service(tmp_path)
     monkeypatch.setattr(
-        "backend.services.knowledge_ingestion.run_default_retrieval_persistence_with_runtime",
+        "backend.services.knowledge_ingestion.run_default_retrieval_refresh_with_runtime",
         lambda **_: SimpleNamespace(
             persistence_result=SimpleNamespace(
                 document_count=1,
                 chunk_count=2,
                 embedding_count=2,
+                removed_document_count=0,
             ),
             batch_result=SimpleNamespace(
                 embedding_model_name="mock-model",
@@ -114,7 +119,7 @@ def test_manual_refresh_persists_manifest_and_success_audit(tmp_path, monkeypatc
 def test_manual_refresh_marks_failed_and_writes_failure_audit(tmp_path, monkeypatch) -> None:
     service, run_repository, audit_repository = build_service(tmp_path)
     monkeypatch.setattr(
-        "backend.services.knowledge_ingestion.run_default_retrieval_persistence_with_runtime",
+        "backend.services.knowledge_ingestion.run_default_retrieval_refresh_with_runtime",
         lambda **_: (_ for _ in ()).throw(RuntimeError("provider unavailable")),
     )
 

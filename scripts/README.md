@@ -22,3 +22,5 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Verifies authenticated analyst, risk operator, and supervisor workflows, including account investigation access, risk scoring, alert acknowledgement, approval decision, and audit authorization.
 - `uv run --env-file .env --no-sync python scripts/verify_round4_ingestion.py`
   Applies local migrations, verifies admin-only knowledge refresh, checks source manifest and persisted RAG counts, and confirms the success audit event.
+- `uv run --env-file .env --no-sync python scripts/verify_round5_refresh.py`
+  Verifies repeatable knowledge refresh, no-op behavior on unchanged sources, and PostgreSQL/pgvector referential and vector-dimension integrity.

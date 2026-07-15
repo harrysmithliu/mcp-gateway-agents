@@ -293,6 +293,8 @@ def test_knowledge_document_repository_builds_upsert_statement() -> None:
         "jurisdiction": "global",
         "file_path": "/tmp/policy.md",
         "tags": ["policy", "trading"],
+        "content_checksum_sha256": None,
+        "index_fingerprint": None,
     }
     assert executor.statements == [statement]
 

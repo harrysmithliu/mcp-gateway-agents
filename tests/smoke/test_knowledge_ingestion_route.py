@@ -19,3 +19,5 @@ def test_knowledge_ingestion_route_is_admin_only() -> None:
     assert admin_response.status_code == 200
     assert admin_response.json()["query_status"] in {"completed", "degraded"}
     assert isinstance(admin_response.json()["runs"], list)
+    if admin_response.json()["runs"]:
+        assert "change_summary" in admin_response.json()["runs"][0]

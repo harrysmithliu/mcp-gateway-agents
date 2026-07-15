@@ -35,3 +35,14 @@ class KnowledgeChunkRepository:
         )
         self.executor.execute(statement)
         return statement
+
+    def delete_chunks_for_document(self, document_id: str) -> SQLStatement:
+        statement = SQLStatement(
+            sql=(
+                "DELETE FROM knowledge.knowledge_chunks "
+                "WHERE document_id = %(document_id)s"
+            ),
+            params={"document_id": document_id},
+        )
+        self.executor.execute(statement)
+        return statement

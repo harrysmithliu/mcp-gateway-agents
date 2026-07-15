@@ -7,11 +7,14 @@ from backend.retrieval.ingestion_manifest import (
     DEFAULT_INGESTION_DOCUMENTS,
     PROJECT_ROOT,
 )
+from backend.retrieval.ingestion_loader import DEFAULT_CHUNKING_CONFIG
 from backend.retrieval.ingestion_models import KnowledgeSourceDocument
+from backend.retrieval.ingestion_revision import build_index_fingerprint
+from backend.retrieval.runtime import build_embedding_config
 from backend.retrieval.persistence import (
     RetrievalPersistenceService,
     build_retrieval_persistence_service,
-    run_default_retrieval_persistence_with_runtime,
+    run_default_retrieval_refresh_with_runtime,
 )
 from backend.storage.models import (
     AuditEventRecord,
@@ -20,6 +23,10 @@ from backend.storage.models import (
 )
 from backend.storage.runtime import StorageBundle
 from backend.storage.settings import Settings
+from backend.services.knowledge_ingestion_planning import (
+    KnowledgeIngestionChangePlan,
+    build_knowledge_ingestion_change_plan,
+)
 
 
 class KnowledgeIngestionAlreadyRunningError(RuntimeError):
@@ -55,9 +62,24 @@ class KnowledgeIngestionService:
             for source_record in source_records:
                 repository.create_source(source_record)
 
-            run_result = run_default_retrieval_persistence_with_runtime(
+            current_sources = tuple(source_records)
+            plan = self.build_refresh_plan_from_sources(current_sources)
+            documents_by_source_id = {
+                document.source_id: document for document in self.source_documents
+            }
+            documents_to_reindex = tuple(
+                documents_by_source_id[source_id]
+                for source_id in plan.source_ids_to_reindex
+                if source_id in documents_by_source_id
+            )
+            run_result = run_default_retrieval_refresh_with_runtime(
                 service=self.retrieval_persistence_service,
                 settings=self.settings,
+                source_documents=documents_to_reindex,
+                source_records=current_sources,
+                source_ids_to_reindex=plan.source_ids_to_reindex,
+                removed_source_ids=plan.removed_source_ids,
+                database_client=self.storage_bundle.database_client,
             )
             persistence_result = run_result.persistence_result
             vector_dimensions = self._resolve_vector_dimensions(run_result)
@@ -70,6 +92,13 @@ class KnowledgeIngestionService:
                 embedding_provider=self.settings.embedding_provider,
                 embedding_model_name=run_result.batch_result.embedding_model_name,
                 vector_dimensions=vector_dimensions,
+                change_summary={
+                    **plan.summary(),
+                    "written_document_count": persistence_result.document_count,
+                    "written_chunk_count": persistence_result.chunk_count,
+                    "written_embedding_count": persistence_result.embedding_count,
+                    "removed_document_count": persistence_result.removed_document_count,
+                },
             )
             self._write_audit_event(
                 actor_user_id=actor_user_id,
@@ -114,6 +143,30 @@ class KnowledgeIngestionService:
             self._build_source_record(run_id=run_id, document=document)
             for document in self.source_documents
         ]
+
+    def build_refresh_plan(self, run_id: str) -> KnowledgeIngestionChangePlan:
+        current_sources = tuple(self.build_source_manifest(run_id))
+        return self.build_refresh_plan_from_sources(current_sources)
+
+    def build_refresh_plan_from_sources(
+        self,
+        current_sources: tuple[KnowledgeIngestionSourceRecord, ...],
+    ) -> KnowledgeIngestionChangePlan:
+        repository = self.storage_bundle.knowledge_ingestion_run_repository
+        previous_run = repository.get_latest_succeeded_run()
+        previous_sources = (
+            repository.list_sources(str(previous_run["run_id"]))
+            if previous_run
+            else []
+        )
+        return build_knowledge_ingestion_change_plan(
+            current_sources=current_sources,
+            previous_sources=previous_sources,
+            previous_run=previous_run,
+            current_embedding_provider=self.settings.embedding_provider,
+            current_embedding_model_name=self.settings.embedding_model_name,
+            current_vector_dimensions=self.settings.embedding_dimensions,
+        )
 
     def list_recent_runs(self, limit: int = 20) -> dict[str, object]:
         try:
@@ -179,6 +232,12 @@ class KnowledgeIngestionService:
             access_level=document.access_level,
             jurisdiction=document.jurisdiction,
             tags=list(document.tags),
+            index_fingerprint=build_index_fingerprint(
+                content_checksum_sha256=sha256(content).hexdigest(),
+                chunking_config=DEFAULT_CHUNKING_CONFIG,
+                embedding_config=build_embedding_config(self.settings),
+                embedding_normalize=self.settings.embedding_normalize,
+            ),
         )
 
     @staticmethod

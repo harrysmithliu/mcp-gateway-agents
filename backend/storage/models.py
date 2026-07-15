@@ -110,6 +110,8 @@ class KnowledgeDocumentRecord:
     file_path: str
     tags: list[str] = field(default_factory=list)
     jurisdiction: str | None = None
+    content_checksum_sha256: str | None = None
+    index_fingerprint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +161,7 @@ class KnowledgeIngestionRunRecord:
     vector_dimensions: int | None = None
     error_type: str | None = None
     error_summary: str | None = None
+    change_summary: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,3 +176,4 @@ class KnowledgeIngestionSourceRecord:
     access_level: str
     jurisdiction: str | None = None
     tags: list[str] = field(default_factory=list)
+    index_fingerprint: str | None = None

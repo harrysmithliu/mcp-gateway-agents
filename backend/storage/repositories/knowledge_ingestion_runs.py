@@ -31,12 +31,13 @@ class KnowledgeIngestionRunRepository:
                 "(run_id, requested_by_user_id, run_mode, status, source_count, "
                 "document_count, chunk_count, embedding_count, embedding_provider, "
                 "embedding_model_name, vector_dimensions, error_type, error_summary, "
-                "started_at) "
+                "change_summary, started_at) "
                 "VALUES ("
                 "%(run_id)s, %(requested_by_user_id)s, %(run_mode)s, %(status)s, "
                 "%(source_count)s, %(document_count)s, %(chunk_count)s, "
                 "%(embedding_count)s, %(embedding_provider)s, %(embedding_model_name)s, "
-                "%(vector_dimensions)s, %(error_type)s, %(error_summary)s, NOW()"
+                "%(vector_dimensions)s, %(error_type)s, %(error_summary)s, "
+                "%(change_summary)s, NOW()"
                 ")"
             ),
             params={
@@ -53,6 +54,7 @@ class KnowledgeIngestionRunRepository:
                 "vector_dimensions": record.vector_dimensions,
                 "error_type": record.error_type,
                 "error_summary": record.error_summary,
+                "change_summary": record.change_summary,
             },
         )
         self.executor.execute(statement)
@@ -63,11 +65,12 @@ class KnowledgeIngestionRunRepository:
             sql=(
                 "INSERT INTO knowledge.ingestion_run_sources "
                 "(run_id, source_id, title, source_path, checksum_sha256, byte_size, "
-                "content_type, access_level, jurisdiction, tags) "
+                "content_type, access_level, jurisdiction, tags, index_fingerprint) "
                 "VALUES ("
                 "%(run_id)s, %(source_id)s, %(title)s, %(source_path)s, "
                 "%(checksum_sha256)s, %(byte_size)s, %(content_type)s, "
-                "%(access_level)s, %(jurisdiction)s, %(tags)s"
+                "%(access_level)s, %(jurisdiction)s, %(tags)s, "
+                "%(index_fingerprint)s"
                 ")"
             ),
             params={
@@ -81,6 +84,7 @@ class KnowledgeIngestionRunRepository:
                 "access_level": record.access_level,
                 "jurisdiction": record.jurisdiction,
                 "tags": record.tags,
+                "index_fingerprint": record.index_fingerprint,
             },
         )
         self.executor.execute(statement)
@@ -96,6 +100,7 @@ class KnowledgeIngestionRunRepository:
         embedding_provider: str | None,
         embedding_model_name: str | None,
         vector_dimensions: int | None,
+        change_summary: dict[str, object] | None = None,
     ) -> SQLStatement:
         statement = SQLStatement(
             sql=(
@@ -104,7 +109,8 @@ class KnowledgeIngestionRunRepository:
                 "chunk_count = %(chunk_count)s, embedding_count = %(embedding_count)s, "
                 "embedding_provider = %(embedding_provider)s, "
                 "embedding_model_name = %(embedding_model_name)s, "
-                "vector_dimensions = %(vector_dimensions)s, completed_at = NOW() "
+                "vector_dimensions = %(vector_dimensions)s, "
+                "change_summary = %(change_summary)s, completed_at = NOW() "
                 "WHERE run_id = %(run_id)s AND status = 'running'"
             ),
             params={
@@ -116,6 +122,7 @@ class KnowledgeIngestionRunRepository:
                 "embedding_provider": embedding_provider,
                 "embedding_model_name": embedding_model_name,
                 "vector_dimensions": vector_dimensions,
+                "change_summary": change_summary or {},
             },
         )
         self.executor.execute(statement)
@@ -150,7 +157,8 @@ class KnowledgeIngestionRunRepository:
                     "SELECT run_id, requested_by_user_id, run_mode, status, "
                     "source_count, document_count, chunk_count, embedding_count, "
                     "embedding_provider, embedding_model_name, vector_dimensions, "
-                    "error_type, error_summary, started_at, completed_at, created_at "
+                    "error_type, error_summary, change_summary, started_at, "
+                    "completed_at, created_at "
                     "FROM knowledge.ingestion_runs "
                     "ORDER BY created_at DESC LIMIT %(limit)s"
                 ),
@@ -165,10 +173,29 @@ class KnowledgeIngestionRunRepository:
                     "SELECT run_id, requested_by_user_id, run_mode, status, "
                     "source_count, document_count, chunk_count, embedding_count, "
                     "embedding_provider, embedding_model_name, vector_dimensions, "
-                    "error_type, error_summary, started_at, completed_at, created_at "
+                    "error_type, error_summary, change_summary, started_at, "
+                    "completed_at, created_at "
                     "FROM knowledge.ingestion_runs WHERE run_id = %(run_id)s"
                 ),
                 params={"run_id": run_id},
+            )
+        )
+        return rows[0] if rows else None
+
+    def get_latest_succeeded_run(self) -> dict[str, object] | None:
+        rows = self.executor.fetch_all(
+            SQLStatement(
+                sql=(
+                    "SELECT run_id, requested_by_user_id, run_mode, status, "
+                    "source_count, document_count, chunk_count, embedding_count, "
+                    "embedding_provider, embedding_model_name, vector_dimensions, "
+                    "error_type, error_summary, change_summary, started_at, "
+                    "completed_at, created_at "
+                    "FROM knowledge.ingestion_runs "
+                    "WHERE status = 'succeeded' "
+                    "ORDER BY completed_at DESC NULLS LAST, created_at DESC LIMIT 1"
+                ),
+                params={},
             )
         )
         return rows[0] if rows else None
@@ -178,7 +205,8 @@ class KnowledgeIngestionRunRepository:
             SQLStatement(
                 sql=(
                     "SELECT run_id, source_id, title, source_path, checksum_sha256, "
-                    "byte_size, content_type, access_level, jurisdiction, tags, created_at "
+                    "byte_size, content_type, access_level, jurisdiction, tags, "
+                    "index_fingerprint, created_at "
                     "FROM knowledge.ingestion_run_sources "
                     "WHERE run_id = %(run_id)s ORDER BY source_id"
                 ),

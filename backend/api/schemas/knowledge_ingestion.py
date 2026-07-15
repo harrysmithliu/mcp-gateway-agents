@@ -14,6 +14,7 @@ class KnowledgeIngestionSourceResponse(BaseModel):
     access_level: str
     jurisdiction: str | None = None
     tags: list[str] = Field(default_factory=list)
+    index_fingerprint: str | None = None
     created_at: datetime | None = None
 
 
@@ -31,6 +32,7 @@ class KnowledgeIngestionRunResponse(BaseModel):
     vector_dimensions: int | None = None
     error_type: str | None = None
     error_summary: str | None = None
+    change_summary: dict[str, object] = Field(default_factory=dict)
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None

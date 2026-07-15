@@ -88,12 +88,14 @@ DEFAULT_CHUNKING_CONFIG = ChunkingConfig(
 )
 
 
-def build_default_ingestion_chunks() -> list[IngestionChunkRecord]:
+def build_default_ingestion_chunks(
+    documents: tuple[KnowledgeSourceDocument, ...] = DEFAULT_INGESTION_DOCUMENTS,
+) -> list[IngestionChunkRecord]:
     """Builds ingestion chunk records for the default ingestion document set."""
 
     chunk_records: list[IngestionChunkRecord] = []
 
-    for document in DEFAULT_INGESTION_DOCUMENTS:
+    for document in documents:
         chunk_records.extend(
             build_ingestion_chunks(
                 document=document,
@@ -189,10 +191,16 @@ DEFAULT_EMBEDDING_CONFIG = EmbeddingConfig(
 )
 
 
-def build_default_vector_documents() -> list[VectorDocumentRecord]:
+def build_default_vector_documents(
+    documents: tuple[KnowledgeSourceDocument, ...] = DEFAULT_INGESTION_DOCUMENTS,
+) -> list[VectorDocumentRecord]:
     """Builds vector-ready documents for the default ingestion document set."""
 
-    chunk_records = build_default_ingestion_chunks()
+    chunk_records = (
+        build_default_ingestion_chunks()
+        if documents is DEFAULT_INGESTION_DOCUMENTS
+        else build_default_ingestion_chunks(documents=documents)
+    )
 
     return build_vector_documents_with_provider(
         chunk_records=chunk_records,
@@ -201,10 +209,24 @@ def build_default_vector_documents() -> list[VectorDocumentRecord]:
     )
 
 
-def build_default_ingestion_batch_result() -> IngestionBatchResult:
+def build_default_ingestion_batch_result(
+    documents: tuple[KnowledgeSourceDocument, ...] = DEFAULT_INGESTION_DOCUMENTS,
+) -> IngestionBatchResult:
     """Builds the default in-memory ingestion batch result."""
 
-    chunk_records = build_default_ingestion_chunks()
+    chunk_records = (
+        build_default_ingestion_chunks()
+        if documents is DEFAULT_INGESTION_DOCUMENTS
+        else build_default_ingestion_chunks(documents=documents)
+    )
+    if not chunk_records:
+        return IngestionBatchResult(
+            chunk_records=[],
+            vector_records=[],
+            embedding_model_name=DEFAULT_EMBEDDING_CONFIG.model_name,
+            chunk_count=0,
+            vector_count=0,
+        )
     vector_records = build_vector_documents_with_provider(
         chunk_records=chunk_records,
         embedding_config=DEFAULT_EMBEDDING_CONFIG,
@@ -222,10 +244,17 @@ def build_default_ingestion_batch_result() -> IngestionBatchResult:
 
 def build_default_vector_documents_with_runtime(
     settings: Settings,
+    documents: tuple[KnowledgeSourceDocument, ...] = DEFAULT_INGESTION_DOCUMENTS,
 ) -> list[VectorDocumentRecord]:
     """Builds vector-ready documents using the configured runtime embedding provider."""
 
-    chunk_records = build_default_ingestion_chunks()
+    chunk_records = (
+        build_default_ingestion_chunks()
+        if documents is DEFAULT_INGESTION_DOCUMENTS
+        else build_default_ingestion_chunks(documents=documents)
+    )
+    if not chunk_records:
+        return []
 
     return build_vector_documents_with_provider(
         chunk_records=chunk_records,
@@ -236,10 +265,24 @@ def build_default_vector_documents_with_runtime(
 
 def build_default_ingestion_batch_result_with_runtime(
     settings: Settings,
+    documents: tuple[KnowledgeSourceDocument, ...] = DEFAULT_INGESTION_DOCUMENTS,
 ) -> IngestionBatchResult:
     """Builds the default ingestion batch result with the configured runtime provider."""
 
-    chunk_records = build_default_ingestion_chunks()
+    chunk_records = (
+        build_default_ingestion_chunks()
+        if documents is DEFAULT_INGESTION_DOCUMENTS
+        else build_default_ingestion_chunks(documents=documents)
+    )
+    if not chunk_records:
+        embedding_config = build_embedding_config(settings)
+        return IngestionBatchResult(
+            chunk_records=[],
+            vector_records=[],
+            embedding_model_name=embedding_config.model_name,
+            chunk_count=0,
+            vector_count=0,
+        )
     embedding_config = build_embedding_config(settings)
     vector_records = build_vector_documents_with_provider(
         chunk_records=chunk_records,

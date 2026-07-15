@@ -1,4 +1,5 @@
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +24,7 @@ from backend.storage.models import (
     ChunkEmbeddingRecord,
     KnowledgeChunkRecord,
     KnowledgeDocumentRecord,
+    KnowledgeIngestionSourceRecord,
 )
 
 
@@ -74,6 +76,19 @@ class FakePlannerlessPersistenceService:
     ) -> object:
         self.calls.append((batch_result, embedding_provider))
         return self.result
+
+
+class FakeDatabaseClient:
+    def __init__(self) -> None:
+        self.statements: list[SQLStatement] = []
+
+    @contextmanager
+    def transaction(self):
+        executor = SimpleNamespace(
+            execute=lambda statement: self.statements.append(statement),
+            fetch_all=lambda _statement: [],
+        )
+        yield executor
 
 
 def test_retrieval_persistence_service_persists_batch_result() -> None:
@@ -171,6 +186,67 @@ def test_retrieval_persistence_service_persists_batch_result() -> None:
     ]
     assert all(record.embedding_provider == "mock" for record in embedding_repository.records)
     assert all(record.embedding_model_name == "mock-embedding-model" for record in embedding_repository.records)
+
+
+def test_refresh_persistence_rebuilds_selected_sources_and_removes_stale_sources() -> None:
+    service = RetrievalPersistenceService(
+        knowledge_document_repository=FakeKnowledgeDocumentRepository(),
+        knowledge_chunk_repository=FakeKnowledgeChunkRepository(),
+        chunk_embedding_repository=FakeChunkEmbeddingRepository(),
+    )
+    database_client = FakeDatabaseClient()
+    batch_result = IngestionBatchResult(
+        chunk_records=[
+            IngestionChunkRecord(
+                chunk_id="source-1-chunk-0",
+                source_id="source-1",
+                title="Source 1",
+                chunk_index=0,
+                text="Updated source text",
+                metadata={"content_type": "text/markdown", "access_level": "internal"},
+            )
+        ],
+        vector_records=[
+            VectorDocumentRecord(
+                chunk_id="source-1-chunk-0",
+                source_id="source-1",
+                title="Source 1",
+                text="Updated source text",
+                embedding=[0.1, 0.2, 0.3, 0.4],
+            )
+        ],
+        embedding_model_name="mock-model",
+        chunk_count=1,
+        vector_count=1,
+    )
+    source_record = KnowledgeIngestionSourceRecord(
+        run_id="run-1",
+        source_id="source-1",
+        title="Source 1",
+        source_path="data/source-1.md",
+        checksum_sha256="b" * 64,
+        byte_size=20,
+        content_type="text/markdown",
+        access_level="internal",
+        index_fingerprint="f" * 64,
+    )
+
+    result = service.persist_refresh_batch_in_transaction(
+        batch_result=batch_result,
+        embedding_provider="mock",
+        source_ids_to_reindex=("source-1",),
+        removed_source_ids=("removed-source",),
+        source_records=(source_record,),
+        database_client=database_client,
+    )
+
+    assert result.document_count == 1
+    assert result.chunk_count == 1
+    assert result.embedding_count == 1
+    assert result.removed_document_count == 1
+    assert "DELETE FROM knowledge.knowledge_documents" in database_client.statements[0].sql
+    assert database_client.statements[1].params["content_checksum_sha256"] == "b" * 64
+    assert "DELETE FROM knowledge.knowledge_chunks" in database_client.statements[2].sql
 
 
 def test_build_retrieval_persistence_service_uses_storage_bundle_repositories() -> None:
