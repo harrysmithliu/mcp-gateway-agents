@@ -10,6 +10,7 @@ class RetrievalQuery:
     access_level: str | None = None
     jurisdiction: str | None = None
     tags: tuple[str, ...] = field(default_factory=tuple)
+    allowed_access_levels: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         normalized_text = self.text.strip()
@@ -18,6 +19,23 @@ class RetrievalQuery:
         if not 1 <= self.top_k <= 50:
             raise ValueError("retrieval query top_k must be between 1 and 50")
         object.__setattr__(self, "text", normalized_text)
+        object.__setattr__(
+            self,
+            "allowed_access_levels",
+            tuple(dict.fromkeys(
+                level.strip()
+                for level in self.allowed_access_levels
+                if isinstance(level, str) and level.strip()
+            )),
+        )
+
+    @property
+    def effective_access_levels(self) -> tuple[str, ...]:
+        if self.allowed_access_levels:
+            return self.allowed_access_levels
+        if self.access_level:
+            return (self.access_level,)
+        return ()
 
 
 @dataclass(frozen=True, slots=True)

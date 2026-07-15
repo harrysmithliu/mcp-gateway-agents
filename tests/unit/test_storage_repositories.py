@@ -406,6 +406,31 @@ def test_knowledge_search_repository_builds_pgvector_similarity_query() -> None:
     assert records[0].chunk_metadata == {"topic": "surveillance"}
 
 
+def test_knowledge_search_repository_builds_parameterized_hierarchical_scope() -> None:
+    executor = FetchFakeExecutor(rows=[])
+    repository = KnowledgeSearchRepository(executor=executor)
+    from backend.retrieval.contracts import QueryEmbedding, RetrievalQuery
+
+    repository.search_similar_chunks(
+        query=RetrievalQuery(
+            text="restricted policy",
+            allowed_access_levels=("internal", "restricted"),
+        ),
+        query_embedding=QueryEmbedding(
+            vector=[0.1, 0.2, 0.3, 0.4],
+            provider="local_sentence_transformer",
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            vector_dimensions=4,
+        ),
+    )
+
+    statement = executor.statements[0]
+    assert "d.access_level IN (%(allowed_access_level_0)s, %(allowed_access_level_1)s)" in statement.sql
+    assert "allowed_access_levels" not in statement.params
+    assert statement.params["allowed_access_level_0"] == "internal"
+    assert statement.params["allowed_access_level_1"] == "restricted"
+
+
 def test_knowledge_ingestion_run_repository_builds_lifecycle_and_manifest_statements() -> None:
     executor = SequentialFetchFakeExecutor(
         [

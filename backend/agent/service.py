@@ -41,6 +41,7 @@ from backend.agent.planning.prompt import (
 )
 from backend.agent.ports import ToolGatewayPort
 from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
+from backend.mcp_gateway.knowledge import is_knowledge_result_usable
 from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
 from backend.retrieval.contracts import RetrievalQuery
 from backend.retrieval.service import RetrievalService
@@ -704,12 +705,10 @@ class AgentService:
         for result in tool_invocation_results:
             if result.tool_name != "knowledge.search":
                 continue
-            if result.invocation_status != "completed":
-                continue
-            retrieval_metadata = result.response_payload.get("retrieval_metadata")
-            if isinstance(retrieval_metadata, dict) and retrieval_metadata.get(
-                "status"
-            ) not in {None, "completed"}:
+            if not is_knowledge_result_usable(
+                invocation_status=result.invocation_status,
+                response_payload=result.response_payload,
+            ):
                 continue
             raw_citations = result.response_payload.get("citations")
             if not isinstance(raw_citations, list):

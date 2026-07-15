@@ -42,6 +42,29 @@ def test_handle_command_returns_structured_chat_result() -> None:
     assert result.planner_result.used_fallback is False
 
 
+def test_agent_does_not_expose_citations_from_unavailable_knowledge_result() -> None:
+    result = AgentService._extract_retrieval_citations(
+        [
+            ToolInvocationResult(
+                tool_name="knowledge.search",
+                domain="knowledge",
+                invocation_status="unavailable",
+                response_payload={
+                    "result_status": "unavailable",
+                    "citations": [
+                        {
+                            "document_id": "doc-1",
+                            "title": "Unavailable source",
+                        }
+                    ],
+                },
+            )
+        ]
+    )
+
+    assert result == []
+
+
 def test_handle_command_uses_passed_registry(monkeypatch) -> None:
     class FakeRegistry:
         def __init__(self) -> None:

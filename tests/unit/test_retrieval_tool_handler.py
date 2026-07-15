@@ -1,4 +1,5 @@
 from backend.mcp_gateway.registry import build_default_registry
+from backend.retrieval.service import RetrievalService
 from backend.retrieval.contracts import (
     RetrievalChunk,
     RetrievalCitation,
@@ -87,6 +88,8 @@ def test_knowledge_search_tool_uses_shared_retrieval_service_contract() -> None:
     )
     assert result.invocation_status == "completed"
     assert result.response_payload["query"] == "policy evidence"
+    assert result.response_payload["contract_version"] == "knowledge.search/v1"
+    assert result.response_payload["result_status"] == "completed"
     assert result.response_payload["total_matches"] == 1
     assert result.response_payload["retrieval_source"] == "postgresql_pgvector"
     assert result.response_payload["citations"][0]["chunk_id"] == "chunk-1"
@@ -101,11 +104,29 @@ def test_knowledge_search_tool_exposes_retrieval_failure_status() -> None:
     )
 
     assert result.invocation_status == "failed"
+    assert result.response_payload["result_status"] == "failed"
     assert result.response_payload["retrieval_metadata"]["status"] == "failed"
     assert (
         result.response_payload["retrieval_metadata"]["failure_reason"]
         == "ConnectionError"
     )
+
+
+def test_knowledge_search_tool_exposes_stable_disabled_contract() -> None:
+    registry = build_default_registry(
+        retrieval_service=RetrievalService(enabled=False),
+    )
+
+    result = registry.invoke(
+        tool_name="knowledge.search",
+        request_payload={"query": "policy evidence"},
+    )
+
+    assert result.invocation_status == "unavailable"
+    assert result.response_payload["contract_version"] == "knowledge.search/v1"
+    assert result.response_payload["result_status"] == "disabled"
+    assert result.response_payload["total_matches"] == 0
+    assert result.response_payload["citations"] == []
 
 
 def test_knowledge_search_prefers_server_authorization_context_over_client_filter() -> None:
@@ -123,3 +144,27 @@ def test_knowledge_search_prefers_server_authorization_context_over_client_filte
 
     assert retrieval_service.received_query is not None
     assert retrieval_service.received_query.access_level == "internal"
+
+
+def test_admin_scope_includes_internal_and_restricted_without_client_override() -> None:
+    retrieval_service = FakeRetrievalService()
+    registry = build_default_registry(retrieval_service=retrieval_service)
+
+    registry.invoke(
+        tool_name="knowledge.search",
+        request_payload={
+            "query": "policy evidence",
+            "access_level": "restricted",
+            "authorization_context": {
+                "access_level": "restricted",
+                "allowed_access_levels": ["internal", "restricted"],
+            },
+        },
+    )
+
+    assert retrieval_service.received_query is not None
+    assert retrieval_service.received_query.access_level is None
+    assert retrieval_service.received_query.allowed_access_levels == (
+        "internal",
+        "restricted",
+    )

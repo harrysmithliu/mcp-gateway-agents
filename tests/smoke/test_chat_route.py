@@ -105,6 +105,13 @@ def test_chat_route_returns_multiple_tool_invocation_results() -> None:
     assert payload["tool_names"] == expected_tool_names
     assert [item["tool_name"] for item in payload["planned_tool_calls"]] == expected_tool_names
     assert [item["tool_name"] for item in payload["tool_invocation_results"]] == expected_tool_names
+    knowledge_payload = next(
+        item["response_payload"]
+        for item in payload["tool_invocation_results"]
+        if item["tool_name"] == "knowledge.search"
+    )
+    assert knowledge_payload["contract_version"] == "knowledge.search/v1"
+    assert isinstance(knowledge_payload["citations"], list)
     assert all(
         item["invocation_status"] == "completed"
         for item in payload["tool_invocation_results"]

@@ -1,3 +1,4 @@
+import json
 import os
 from mcp.server.fastmcp import FastMCP
 
@@ -12,20 +13,44 @@ KNOWLEDGE_SEARCH_DESCRIPTION = (
 )
 
 
+def build_server_authorization_context() -> dict[str, object]:
+    """Read the server-owned MCP scope injected by the trusted SDK launcher."""
+
+    raw_levels = os.getenv("MCP_SERVER_ALLOWED_ACCESS_LEVELS", "").strip()
+    levels: list[str] = []
+    if raw_levels:
+        try:
+            parsed_levels = json.loads(raw_levels)
+        except json.JSONDecodeError:
+            parsed_levels = []
+        if isinstance(parsed_levels, list):
+            levels = list(
+                dict.fromkeys(
+                    level.strip()
+                    for level in parsed_levels
+                    if isinstance(level, str) and level.strip()
+                )
+            )
+    if not levels:
+        levels = ["internal"]
+    return {
+        "access_level": levels[-1],
+        "allowed_access_levels": levels,
+    }
+
+
 def invoke_knowledge_search(
     registry: ToolGatewayPort,
     query: str,
     top_k: int = 3,
-    access_level: str | None = None,
     jurisdiction: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, object]:
     request_payload: dict[str, object] = {
         "query": query,
         "top_k": top_k,
+        "authorization_context": build_server_authorization_context(),
     }
-    if access_level is not None:
-        request_payload["access_level"] = access_level
     if jurisdiction is not None:
         request_payload["jurisdiction"] = jurisdiction
     if tags:
@@ -50,7 +75,6 @@ def build_mcp_server(registry: ToolGatewayPort | None = None) -> FastMCP:
     def knowledge_search(
         query: str,
         top_k: int = 3,
-        access_level: str | None = None,
         jurisdiction: str | None = None,
         tags: list[str] | None = None,
     ) -> dict[str, object]:
@@ -58,7 +82,6 @@ def build_mcp_server(registry: ToolGatewayPort | None = None) -> FastMCP:
             registry=active_registry,
             query=query,
             top_k=top_k,
-            access_level=access_level,
             jurisdiction=jurisdiction,
             tags=tags,
         )

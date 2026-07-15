@@ -31,9 +31,19 @@ class KnowledgeSearchRepository:
             "top_k": query.top_k,
         }
 
-        if query.access_level is not None:
+        access_levels = query.effective_access_levels
+        if len(access_levels) == 1:
             where_clauses.append("d.access_level = %(access_level)s")
-            params["access_level"] = query.access_level
+            params["access_level"] = access_levels[0]
+        elif access_levels:
+            access_level_params = []
+            for index, access_level in enumerate(access_levels):
+                parameter_name = f"allowed_access_level_{index}"
+                access_level_params.append(f"%({parameter_name})s")
+                params[parameter_name] = access_level
+            where_clauses.append(
+                f"d.access_level IN ({', '.join(access_level_params)})"
+            )
         if query.jurisdiction is not None:
             where_clauses.append("d.jurisdiction = %(jurisdiction)s")
             params["jurisdiction"] = query.jurisdiction

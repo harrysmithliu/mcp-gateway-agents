@@ -49,11 +49,23 @@ def build_mcp_tool_call(
     )
 
 
+def build_mcp_client_arguments(
+    request_payload: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Keep server-owned authorization fields out of public MCP arguments."""
+
+    arguments = dict(request_payload or {})
+    arguments.pop("authorization_context", None)
+    arguments.pop("access_level", None)
+    return arguments
+
+
 def build_tool_invocation_result(
     tool_call: MCPToolCall,
     domain: str,
     invocation_status: str,
     response_payload: dict[str, object] | None = None,
+    transport: str = "registry",
 ) -> ToolInvocationResult:
     return ToolInvocationResult(
         tool_name=tool_call.tool_name,
@@ -61,4 +73,5 @@ def build_tool_invocation_result(
         invocation_status=invocation_status,
         request_payload=dict(tool_call.arguments),
         response_payload=dict(response_payload or {}),
+        transport=transport,
     )

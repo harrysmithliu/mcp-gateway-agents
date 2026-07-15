@@ -56,7 +56,6 @@ def knowledge_search(
         principal=principal,
         request_payload={
             "top_k": request.top_k,
-            "access_level": request.access_level,
             "jurisdiction": request.jurisdiction,
             "tags": request.tags,
         },

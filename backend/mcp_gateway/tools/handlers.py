@@ -1,6 +1,11 @@
 from collections.abc import Callable
 
 from backend.mcp_gateway.models import MCPToolDefinition, ToolInvocationResult
+from backend.mcp_gateway.knowledge import (
+    build_preview_knowledge_payload,
+    build_knowledge_invocation_status,
+    build_normalized_knowledge_payload,
+)
 from backend.retrieval.contracts import RetrievalQuery
 from backend.retrieval.service import RetrievalService
 from backend.services.common import extract_query_text
@@ -47,22 +52,24 @@ def build_default_tool_handlers(
                 request_payload=request_payload,
             )
             retrieval_result = retrieval_service.retrieve(retrieval_query)
-            response_payload = retrieval_result.to_payload()
-            response_payload["query"] = retrieval_query.text
-            response_payload["total_matches"] = retrieval_result.metadata.result_count
+            response_payload = build_normalized_knowledge_payload(
+                query_text=retrieval_query.text,
+                retrieval_result=retrieval_result,
+            )
             return ToolInvocationResult(
                 tool_name=tool_definition.name,
                 domain=tool_definition.domain,
-                invocation_status=(
-                    "failed"
-                    if retrieval_result.metadata.status == "failed"
-                    else "completed"
+                invocation_status=build_knowledge_invocation_status(
+                    retrieval_result.metadata.status
                 ),
                 request_payload=request_payload,
                 response_payload=response_payload,
             )
 
-        response_payload = knowledge_service.search(query_text=query_text, limit=3)
+        response_payload = build_preview_knowledge_payload(
+            query_text=query_text,
+            preview_payload=knowledge_service.search(query_text=query_text, limit=3),
+        )
         return _build_completed_result(tool_definition, request_payload, response_payload)
 
     def handle_risk_score_account(
@@ -115,10 +122,16 @@ def _build_retrieval_query(
         if isinstance(raw_tags, (list, tuple))
         else ()
     )
+    access_levels = _build_authorized_access_levels(request_payload)
     return RetrievalQuery(
         text=query_text,
         top_k=top_k,
-        access_level=_build_authorized_access_level(request_payload),
+        access_level=(
+            access_levels[0]
+            if len(access_levels) == 1
+            else None
+        ),
+        allowed_access_levels=(access_levels if len(access_levels) > 1 else ()),
         jurisdiction=_optional_string(request_payload.get("jurisdiction")),
         tags=tags,
     )
@@ -130,8 +143,21 @@ def _optional_string(value: object) -> str | None:
     return None
 
 
-def _build_authorized_access_level(request_payload: dict[str, object]) -> str | None:
+def _build_authorized_access_levels(
+    request_payload: dict[str, object],
+) -> tuple[str, ...]:
     authorization_context = request_payload.get("authorization_context")
     if isinstance(authorization_context, dict):
-        return _optional_string(authorization_context.get("access_level"))
-    return _optional_string(request_payload.get("access_level"))
+        raw_levels = authorization_context.get("allowed_access_levels")
+        if isinstance(raw_levels, (list, tuple)):
+            levels = tuple(
+                level.strip()
+                for level in raw_levels
+                if isinstance(level, str) and level.strip()
+            )
+            if levels:
+                return tuple(dict.fromkeys(levels))
+        access_level = _optional_string(authorization_context.get("access_level"))
+        if access_level is not None:
+            return (access_level,)
+    return ("internal",)

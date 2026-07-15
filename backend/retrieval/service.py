@@ -203,8 +203,11 @@ class RetrievalService:
     @staticmethod
     def _build_filter_payload(query: RetrievalQuery) -> dict[str, object]:
         filters: dict[str, object] = {}
-        if query.access_level is not None:
-            filters["access_level"] = query.access_level
+        access_levels = query.effective_access_levels
+        if len(access_levels) == 1:
+            filters["access_level"] = access_levels[0]
+        elif access_levels:
+            filters["allowed_access_levels"] = list(access_levels)
         if query.jurisdiction is not None:
             filters["jurisdiction"] = query.jurisdiction
         if query.tags:

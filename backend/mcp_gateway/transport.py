@@ -8,6 +8,7 @@ from typing import Any
 from backend.agent.ports import ToolGatewayPort
 from backend.mcp_gateway.contracts import (
     KNOWLEDGE_SEARCH_TOOL_NAME,
+    build_mcp_client_arguments,
     build_mcp_tool_call,
     build_tool_invocation_result,
 )
@@ -79,19 +80,25 @@ class MCPTransportRouter:
             raise ValueError(f"Tool is not registered: {tool_name}")
 
         tool_call = build_mcp_tool_call(tool_name, request_payload)
+        request_payload = request_payload or {}
+        authorization_context = request_payload.get("authorization_context")
+        authorization_context = (
+            authorization_context if isinstance(authorization_context, dict) else None
+        )
         client_result = asyncio.run(
             self.sdk_client.call_tool(
                 tool_name=tool_name,
-                arguments=tool_call.arguments,
+                arguments=build_mcp_client_arguments(request_payload),
+                server_authorization_context=authorization_context,
             )
         )
         response_payload = dict(client_result.structured_content)
-        response_payload["mcp_transport"] = "sdk_stdio"
         return build_tool_invocation_result(
             tool_call=tool_call,
             domain=tool_definition.domain,
             invocation_status="failed" if client_result.is_error else "completed",
             response_payload=response_payload,
+            transport="sdk_stdio",
         )
 
 

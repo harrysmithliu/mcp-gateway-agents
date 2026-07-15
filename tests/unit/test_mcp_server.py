@@ -5,6 +5,7 @@ pytest.importorskip("mcp")
 from backend.mcp_gateway.models import MCPToolDefinition, ToolInvocationResult
 from backend.mcp_gateway.server import (
     KNOWLEDGE_SEARCH_TOOL_NAME,
+    build_server_authorization_context,
     build_mcp_server,
 )
 
@@ -55,6 +56,28 @@ def test_build_mcp_server_registers_knowledge_search() -> None:
 
     assert [tool.name for tool in tools] == [KNOWLEDGE_SEARCH_TOOL_NAME]
     assert tools[0].parameters["properties"]["query"]["type"] == "string"
+    assert "access_level" not in tools[0].parameters["properties"]
+
+
+def test_server_authorization_context_defaults_to_internal(monkeypatch) -> None:
+    monkeypatch.delenv("MCP_SERVER_ALLOWED_ACCESS_LEVELS", raising=False)
+
+    assert build_server_authorization_context() == {
+        "access_level": "internal",
+        "allowed_access_levels": ["internal"],
+    }
+
+
+def test_server_authorization_context_accepts_trusted_hierarchical_scope(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "MCP_SERVER_ALLOWED_ACCESS_LEVELS",
+        '["internal", "restricted", "internal"]',
+    )
+
+    assert build_server_authorization_context() == {
+        "access_level": "restricted",
+        "allowed_access_levels": ["internal", "restricted"],
+    }
 
 
 def test_mcp_knowledge_search_reuses_registry_invocation() -> None:
@@ -76,6 +99,10 @@ def test_mcp_knowledge_search_reuses_registry_invocation() -> None:
             {
                 "query": "policy evidence",
                 "top_k": 2,
+                "authorization_context": {
+                    "access_level": "internal",
+                    "allowed_access_levels": ["internal"],
+                },
                 "jurisdiction": "CA",
                 "tags": ["policy"],
             },

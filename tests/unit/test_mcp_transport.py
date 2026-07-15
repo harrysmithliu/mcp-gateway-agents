@@ -42,14 +42,15 @@ class FakeRegistry:
 
 class FakeSDKClient:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, dict[str, object], dict[str, object] | None]] = []
 
     async def call_tool(
         self,
         tool_name: str,
         arguments: dict[str, object],
+        server_authorization_context: dict[str, object] | None = None,
     ):
-        self.calls.append((tool_name, arguments))
+        self.calls.append((tool_name, arguments, server_authorization_context))
         return type(
             "FakeClientResult",
             (),
@@ -85,15 +86,32 @@ def test_sdk_mode_routes_allowlisted_tool_and_preserves_other_tools() -> None:
         sdk_client=sdk_client,
     )
 
-    sdk_result = router.invoke("knowledge.search", {"query": "policy"})
+    sdk_result = router.invoke(
+        "knowledge.search",
+        {
+            "query": "policy",
+            "access_level": "restricted",
+            "authorization_context": {
+                "access_level": "internal",
+                "allowed_access_levels": ["internal"],
+            },
+        },
+    )
     registry_result = router.invoke("risk.score_account", {"query": "account"})
 
-    assert sdk_result.response_payload == {
-        "source": "sdk",
-        "mcp_transport": "sdk_stdio",
-    }
+    assert sdk_result.response_payload == {"source": "sdk"}
+    assert sdk_result.transport == "sdk_stdio"
     assert registry_result.response_payload == {"source": "registry"}
-    assert sdk_client.calls == [("knowledge.search", {"query": "policy"})]
+    assert sdk_client.calls == [
+        (
+            "knowledge.search",
+            {"query": "policy"},
+            {
+                "access_level": "internal",
+                "allowed_access_levels": ["internal"],
+            },
+        )
+    ]
     assert registry.registry_calls == ["risk.score_account"]
 
 
@@ -101,7 +119,12 @@ def test_sdk_failure_falls_back_to_registry() -> None:
     registry = FakeRegistry()
 
     class FailingSDKClient:
-        async def call_tool(self, tool_name: str, arguments: dict[str, object]):
+        async def call_tool(
+            self,
+            tool_name: str,
+            arguments: dict[str, object],
+            server_authorization_context: dict[str, object] | None = None,
+        ):
             raise RuntimeError("transport unavailable")
 
     router = MCPTransportRouter(

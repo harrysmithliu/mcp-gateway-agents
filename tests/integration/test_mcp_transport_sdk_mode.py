@@ -19,5 +19,7 @@ def test_sdk_stdio_mode_routes_knowledge_search_through_local_mcp() -> None:
     )
 
     assert result.invocation_status == "completed"
-    assert result.response_payload["mcp_transport"] == "sdk_stdio"
+    assert result.transport == "sdk_stdio"
+    assert result.response_payload["contract_version"] == "knowledge.search/v1"
+    assert "mcp_transport" not in result.response_payload
     assert result.response_payload["query"] == "policy evidence"

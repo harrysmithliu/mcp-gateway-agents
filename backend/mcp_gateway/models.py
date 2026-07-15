@@ -19,3 +19,4 @@ class ToolInvocationResult:
     invocation_status: str
     request_payload: dict[str, object] = field(default_factory=dict)
     response_payload: dict[str, object] = field(default_factory=dict)
+    transport: str = "registry"

@@ -128,6 +128,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
                     "username": "analyst_demo",
                     "roles": ("analyst",),
                     "access_level": "internal",
+                    "allowed_access_levels": ("internal",),
                 },
             )
     ]
@@ -197,6 +198,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
                         "username": "analyst_demo",
                         "roles": ("analyst",),
                         "access_level": "internal",
+                        "allowed_access_levels": ("internal",),
                     },
                 },
         )

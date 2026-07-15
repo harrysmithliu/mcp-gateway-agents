@@ -37,11 +37,18 @@ def isolate_default_http_knowledge_handler():
             invocation_status="completed",
             request_payload=request_payload,
             response_payload={
+                "contract_version": "knowledge.search/v1",
                 "query": request_payload.get("query", ""),
+                "result_status": "empty",
                 "total_matches": 0,
+                "rag_enabled": False,
                 "retrieval_source": "test_http_boundary",
                 "retrieved_chunks": [],
                 "citations": [],
+                "retrieval_metadata": {
+                    "status": "empty",
+                    "result_count": 0,
+                },
             },
         )
 
