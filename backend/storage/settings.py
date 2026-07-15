@@ -28,6 +28,9 @@ class Settings:
     retrieval_enabled: bool = os.getenv(
         "RETRIEVAL_ENABLED", "true"
     ).lower() in {"1", "true", "yes", "on"}
+    retrieval_min_similarity: float = float(
+        os.getenv("RETRIEVAL_MIN_SIMILARITY", "0.15")
+    )
     embedding_provider: str = os.getenv(
         "EMBEDDING_PROVIDER",
         "local_sentence_transformer",
@@ -41,6 +44,10 @@ class Settings:
     embedding_normalize: bool = os.getenv(
         "EMBEDDING_NORMALIZE",
         "true",
+    ).lower() in {"1", "true", "yes", "on"}
+    embedding_local_files_only: bool = os.getenv(
+        "EMBEDDING_LOCAL_FILES_ONLY",
+        "false",
     ).lower() in {"1", "true", "yes", "on"}
     embedding_query_prefix: str = os.getenv("EMBEDDING_QUERY_PREFIX", "")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")

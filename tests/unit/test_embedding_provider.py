@@ -52,12 +52,18 @@ def test_local_sentence_transformer_embedding_provider_embeds_texts() -> None:
     captured_calls: list[dict[str, object]] = []
 
     class FakeSentenceTransformer:
-        def __init__(self, model_name: str, device: str) -> None:
+        def __init__(
+            self,
+            model_name: str,
+            device: str,
+            local_files_only: bool,
+        ) -> None:
             captured_calls.append(
                 {
                     "event": "init",
                     "model_name": model_name,
                     "device": device,
+                    "local_files_only": local_files_only,
                 }
             )
 
@@ -79,6 +85,7 @@ def test_local_sentence_transformer_embedding_provider_embeds_texts() -> None:
         model_name="sentence-transformers/all-MiniLM-L6-v2",
         device="cpu",
         normalize_embeddings=True,
+        local_files_only=True,
         sentence_transformer_factory=FakeSentenceTransformer,
     )
 
@@ -100,6 +107,7 @@ def test_local_sentence_transformer_embedding_provider_embeds_texts() -> None:
             "event": "init",
             "model_name": "sentence-transformers/all-MiniLM-L6-v2",
             "device": "cpu",
+            "local_files_only": True,
         },
         {
             "event": "encode",

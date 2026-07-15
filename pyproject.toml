@@ -33,7 +33,7 @@ dev = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["backend*", "frontend*", "integrations*"]
+include = ["backend*", "frontend*", "integrations*", "evals*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -37,6 +37,7 @@ class LocalSentenceTransformerEmbeddingProvider(EmbeddingProvider):
     model_name: str
     device: str = "cpu"
     normalize_embeddings: bool = True
+    local_files_only: bool = False
     sentence_transformer_factory: Callable[..., object] | None = None
     _model: object | None = field(default=None, init=False, repr=False)
 
@@ -59,6 +60,7 @@ class LocalSentenceTransformerEmbeddingProvider(EmbeddingProvider):
                 self._model = sentence_transformer_factory(
                     self.model_name,
                     device=self.device,
+                    local_files_only=self.local_files_only,
                 )
             except ImportError as exc:
                 raise RuntimeError(

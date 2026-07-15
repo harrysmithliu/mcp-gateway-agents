@@ -34,6 +34,7 @@ class RetrievalService:
     knowledge_search_repository: KnowledgeSearchRepository | None = None
     enabled: bool = True
     runtime_error: str | None = None
+    minimum_similarity: float = 0.15
 
     def describe(self) -> str:
         return "Retrieval service backed by configured embeddings and PostgreSQL/pgvector."
@@ -114,6 +115,11 @@ class RetrievalService:
                 query=query,
                 query_embedding=query_embedding,
             )
+            records = [
+                record
+                for record in records
+                if record.similarity_score >= self.minimum_similarity
+            ]
         except Exception as exc:
             logger.exception(
                 "Knowledge retrieval failed",

@@ -42,6 +42,7 @@ def test_build_embedding_provider_returns_local_sentence_transformer_provider() 
         embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
         embedding_device="cpu",
         embedding_normalize=True,
+        embedding_local_files_only=True,
     )
 
     provider = build_embedding_provider(settings)
@@ -50,6 +51,7 @@ def test_build_embedding_provider_returns_local_sentence_transformer_provider() 
     assert provider.model_name == "sentence-transformers/all-MiniLM-L6-v2"
     assert provider.device == "cpu"
     assert provider.normalize_embeddings is True
+    assert provider.local_files_only is True
 
 
 def test_build_embedding_provider_raises_on_unknown_provider() -> None:
@@ -68,6 +70,7 @@ def test_build_retrieval_service_wires_embedding_runtime_and_repository() -> Non
         embedding_provider="mock",
         embedding_model_name="mock-embedding-model",
         embedding_dimensions=4,
+        retrieval_min_similarity=0.25,
     )
     repository = KnowledgeSearchRepository(executor=object())
 
@@ -76,6 +79,7 @@ def test_build_retrieval_service_wires_embedding_runtime_and_repository() -> Non
     assert retrieval_service.embedding_config == build_embedding_config(settings)
     assert retrieval_service.embedding_provider is not None
     assert retrieval_service.knowledge_search_repository is repository
+    assert retrieval_service.minimum_similarity == 0.25
     assert retrieval_service.runtime_status().state == "ready"
 
 

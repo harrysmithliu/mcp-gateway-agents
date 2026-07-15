@@ -65,6 +65,16 @@ def test_agent_does_not_expose_citations_from_unavailable_knowledge_result() -> 
     assert result == []
 
 
+def test_rule_planner_does_not_route_risk_review_to_ops() -> None:
+    tool_names, _, _, _ = AgentService().plan_tool_calls(
+        normalized_role="analyst",
+        normalized_text="Review the risk score for the Gamma account.",
+        registry=build_default_registry(),
+    )
+
+    assert tool_names == ["risk.score_account"]
+
+
 def test_handle_command_uses_passed_registry(monkeypatch) -> None:
     class FakeRegistry:
         def __init__(self) -> None:

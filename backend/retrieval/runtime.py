@@ -27,6 +27,7 @@ def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
             model_name=settings.embedding_model_name,
             device=settings.embedding_device,
             normalize_embeddings=settings.embedding_normalize,
+            local_files_only=settings.embedding_local_files_only,
         )
 
     raise ValueError(
@@ -60,4 +61,5 @@ def build_retrieval_service(
         embedding_config=embedding_config,
         embedding_provider=embedding_provider,
         knowledge_search_repository=knowledge_search_repository,
+        minimum_similarity=settings.retrieval_min_similarity,
     )

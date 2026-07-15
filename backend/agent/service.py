@@ -79,7 +79,7 @@ TOOL_ROUTING_RULES = (
     ),
     ToolRoutingRule(
         tool_name="ops.create_alert_or_action",
-        keywords=("alert", "review", "escalate"),
+        keywords=("alert", "escalate", "create action"),
         privileged_action="Prepare an alert or review action payload.",
         fallback_action="Draft an alert summary for a higher-privilege operator.",
     ),

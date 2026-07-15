@@ -635,7 +635,7 @@ Git push boundary:
 
 - a self-contained Phase-1 product milestone suitable for internal demo
 
-### Batch 5. Retrieval And Evidence Layer
+### Batch 5. Retrieval, Agent Evaluation And Evidence Layer
 
 Goal:
 
@@ -652,6 +652,7 @@ Scope:
 - evidence rendering in UI
 - LangChain retrieval hooks or chains integrated into the agent flow
 - MCP exposure of retrieval-backed knowledge capabilities through `backend/mcp_gateway/`
+- deterministic agent evaluation for tool selection, authorization, retrieval, and citation behavior
 
 Deliverables:
 
@@ -662,6 +663,7 @@ Deliverables:
 - embeddings written to `chunk_embeddings`
 - retrieval-backed answers with citations
 - admin workflow for knowledge refresh or indexing
+- versioned evaluation cases, an offline evaluation runner, and machine-readable reports for the core agent path
 
 Completion metrics:
 
@@ -670,10 +672,12 @@ Completion metrics:
 - retrieved content is visible in the UI
 - ingestion can be rerun safely on local data
 - the retrieval flow does not require a mandatory external vector database
+- core evaluation cases verify required and forbidden tool calls, server-owned authorization, and citation/result contract integrity without a paid LLM dependency
 
 Git push boundary:
 
 - the product still runs even if retrieval is disabled by configuration
+- deterministic evaluation results are reproducible from versioned cases and local project services
 
 ### Batch 6. Cache, Chat History, And Guardrails
 

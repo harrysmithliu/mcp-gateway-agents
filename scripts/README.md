@@ -18,6 +18,8 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Runs one local `sdk_stdio` knowledge tool call and prints safe transport and canonical knowledge metadata; set `MCP_SERVER_RUNTIME=runtime` to use the configured retrieval runtime.
 - `uv run --env-file .env --no-sync python scripts/verify_round6_mcp_retrieval.py`
   Verifies server-owned analyst/admin access scopes, canonical HTTP/Agent/MCP retrieval semantics, citation stability and the disabled retrieval contract without calling a paid LLM API.
+- `uv run --env-file .env --no-sync python scripts/run_agent_evaluation.py`
+  Runs the versioned deterministic Agent evaluation dataset through the in-process target and writes a machine-readable report under `artifacts/evaluations/`.
 - `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py`
   Applies local migrations, writes and reads a risk batch score, transitions a risk alert, and verifies its audit history.
 - `uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py`

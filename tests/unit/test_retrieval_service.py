@@ -102,6 +102,62 @@ def test_retrieval_service_returns_disabled_empty_result_without_matches() -> No
     assert result.metadata.status == "empty"
 
 
+def test_retrieval_service_filters_low_similarity_results() -> None:
+    repository = FakeKnowledgeSearchRepository(
+        records=[
+            KnowledgeSearchRecord(
+                chunk_id="weak-chunk",
+                document_id="doc-1",
+                title="Weak match",
+                source_path="data/weak.md",
+                chunk_index=0,
+                chunk_text="Unrelated text.",
+                similarity_score=0.10,
+            ),
+            KnowledgeSearchRecord(
+                chunk_id="strong-chunk",
+                document_id="doc-2",
+                title="Strong match",
+                source_path="data/strong.md",
+                chunk_index=0,
+                chunk_text="Relevant policy evidence.",
+                similarity_score=0.62,
+            ),
+        ]
+    )
+    service = build_service(repository)
+    service.minimum_similarity = 0.15
+
+    result = service.retrieve(RetrievalQuery(text="policy evidence"))
+
+    assert [chunk.chunk_id for chunk in result.retrieved_chunks] == ["strong-chunk"]
+    assert result.metadata.status == "completed"
+
+
+def test_retrieval_service_returns_empty_when_all_results_are_below_threshold() -> None:
+    repository = FakeKnowledgeSearchRepository(
+        records=[
+            KnowledgeSearchRecord(
+                chunk_id="weak-chunk",
+                document_id="doc-1",
+                title="Weak match",
+                source_path="data/weak.md",
+                chunk_index=0,
+                chunk_text="Unrelated text.",
+                similarity_score=0.10,
+            )
+        ]
+    )
+    service = build_service(repository)
+    service.minimum_similarity = 0.15
+
+    result = service.retrieve(RetrievalQuery(text="policy evidence"))
+
+    assert result.retrieved_chunks == []
+    assert result.citations == []
+    assert result.metadata.status == "empty"
+
+
 def test_retrieval_service_returns_disabled_result_when_runtime_is_disabled() -> None:
     service = RetrievalService(
         embedding_config=EmbeddingConfig(
