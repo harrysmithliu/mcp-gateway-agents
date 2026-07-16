@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from backend.agent.models import ChatHistoryMessage
 from backend.agent.ports import ToolGatewayPort
 from backend.agent.planning.grounding import build_grounding_context
+from backend.agent.planning.memory import (
+    format_history_for_planner,
+    normalize_history_messages,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,18 +57,9 @@ def build_langchain_message_history_payload(
     normalized_role: str,
     normalized_text: str,
 ) -> dict[str, object]:
+    normalized_history = normalize_history_messages(recent_messages)
     messages: list[dict[str, str]] = []
-    for recent_message in recent_messages or []:
-        normalized_message_role = recent_message.role.strip().lower()
-        normalized_message_content = recent_message.content.strip()
-        if not normalized_message_content:
-            continue
-        messages.append(
-            {
-                "role": normalized_message_role or "unknown",
-                "content": normalized_message_content,
-            }
-        )
+    messages.extend(normalized_history.messages)
 
     messages.append(
         {
@@ -78,6 +73,7 @@ def build_langchain_message_history_payload(
         "session_id": session_id,
         "history_source": "request_messages" if recent_messages else "current_turn_only",
         "messages": messages,
+        "normalization": normalized_history.to_payload(),
     }
 
 
@@ -150,6 +146,7 @@ def build_langchain_planner_prompt(
     output_contract: dict[str, object],
     retrieval_context: dict[str, object],
     guardrail_context: dict[str, object],
+    message_history: dict[str, object] | None = None,
 ) -> str:
     available_tool_names = ", ".join(output_contract["allowed_tool_names"])
     retrieval_context_prompt = build_langchain_retrieval_context_prompt(
@@ -158,6 +155,7 @@ def build_langchain_planner_prompt(
     guardrail_context_prompt = build_langchain_guardrail_context_prompt(
         guardrail_context
     )
+    message_history_prompt = format_history_for_planner(message_history or {})
     return (
         "You are the trading and risk operations planner. "
         "Select the best matching tools from the available tool list. "
@@ -167,6 +165,7 @@ def build_langchain_planner_prompt(
         f"fallback_tool={output_contract['fallback_tool']}. "
         f"User role: {normalized_role or 'unknown'}. "
         f"Available tools: {available_tool_names}. "
+        f"{message_history_prompt} "
         f"{retrieval_context_prompt} "
         f"{guardrail_context_prompt} "
         f"User request: {normalized_text}"
@@ -190,6 +189,7 @@ def build_langchain_planner_payload(
         output_contract=output_contract,
         retrieval_context=normalized_retrieval_context,
         guardrail_context=guardrail_context,
+        message_history=message_history,
     )
     return {
         "planner_config": {
