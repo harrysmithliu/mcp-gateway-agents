@@ -59,6 +59,8 @@ class ChatApiResponse:
     planner_result: ChatApiPlannerResult | None = None
     cache_status: str = "disabled"
     cache_reason: str | None = None
+    evidence_guardrail_status: str = "not_applicable"
+    evidence_guardrail_reason: str | None = None
 
 
 def _post_json(
@@ -144,6 +146,10 @@ def post_chat_message(
         citations=parse_retrieval_citations(response_payload.get("citations")),
         cache_status=str(response_payload.get("cache_status", "disabled")),
         cache_reason=response_payload.get("cache_reason"),
+        evidence_guardrail_status=str(
+            response_payload.get("evidence_guardrail_status", "not_applicable")
+        ),
+        evidence_guardrail_reason=response_payload.get("evidence_guardrail_reason"),
         planner_result=(
             ChatApiPlannerResult(
                 planner_source=str(response_payload["planner_result"]["planner_source"]),

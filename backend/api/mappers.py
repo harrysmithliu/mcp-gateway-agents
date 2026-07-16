@@ -85,6 +85,8 @@ def build_chat_response(
         ],
         cache_status=agent_response.cache_status,
         cache_reason=agent_response.cache_reason,
+        evidence_guardrail_status=agent_response.evidence_guardrail_status,
+        evidence_guardrail_reason=agent_response.evidence_guardrail_reason,
         planner_result=(
             ChatResponse.PlannerResultResponse(
                 planner_source=agent_response.planner_result.planner_source,

@@ -400,6 +400,12 @@ class ChatPersistenceCoordinator:
                             else len(agent_response.tool_invocation_results)
                         ),
                         "cache_status": agent_response.cache_status,
+                        "evidence_guardrail_status": (
+                            agent_response.evidence_guardrail_status
+                        ),
+                        "evidence_guardrail_reason": (
+                            agent_response.evidence_guardrail_reason
+                        ),
                         "planner_source": (
                             agent_response.planner_result.planner_source
                             if agent_response.planner_result is not None

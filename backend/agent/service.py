@@ -51,6 +51,7 @@ from backend.agent.planning.prompt import (
 )
 from backend.agent.ports import ToolGatewayPort
 from backend.guardrails.policy import ACTION_ENABLED_ROLES, GuardrailPolicy
+from backend.guardrails.output import validate_evidence_bound_output
 from backend.mcp_gateway.knowledge import is_knowledge_result_usable
 from backend.mcp_gateway.registry import ToolInvocationResult, build_default_registry
 from backend.retrieval.contracts import RetrievalQuery
@@ -726,6 +727,11 @@ class AgentService:
             response_evidence.append(
                 f"Evidence grounded by {len(citations)} knowledge citation(s)."
             )
+        evidence_guardrail = validate_evidence_bound_output(
+            tool_invocation_results=tool_invocation_results,
+            citations=citations,
+            evidence=response_evidence,
+        )
         return AgentResponse(
             reply_text=(
                 f"Prepared a placeholder agent response for the {normalized_role or 'unknown'} "
@@ -736,10 +742,12 @@ class AgentService:
             tool_names=tool_names,
             planned_tool_calls=planned_tool_calls,
             tool_invocation_results=tool_invocation_results,
-            evidence=response_evidence,
+            evidence=evidence_guardrail.evidence,
             actions=actions,
             planner_result=planner_result,
-            citations=citations,
+            citations=evidence_guardrail.citations,
+            evidence_guardrail_status=evidence_guardrail.status.value,
+            evidence_guardrail_reason=evidence_guardrail.reason,
         )
 
     @staticmethod

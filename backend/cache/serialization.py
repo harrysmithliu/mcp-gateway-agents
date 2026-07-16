@@ -59,6 +59,8 @@ def serialize_agent_response(response: AgentResponse) -> dict[str, object]:
         "citations": [dict(citation) for citation in response.citations],
         "cache_status": response.cache_status,
         "cache_reason": response.cache_reason,
+        "evidence_guardrail_status": response.evidence_guardrail_status,
+        "evidence_guardrail_reason": response.evidence_guardrail_reason,
     }
 
 
@@ -129,4 +131,8 @@ def deserialize_agent_response(payload: dict[str, object]) -> AgentResponse:
         ],
         cache_status=str(payload.get("cache_status", CacheStatus.MISS.value)),
         cache_reason=payload.get("cache_reason"),
+        evidence_guardrail_status=str(
+            payload.get("evidence_guardrail_status", "not_applicable")
+        ),
+        evidence_guardrail_reason=payload.get("evidence_guardrail_reason"),
     )

@@ -65,3 +65,5 @@ class ChatResponse(BaseModel):
     planner_result: PlannerResultResponse | None = None
     cache_status: str = "disabled"
     cache_reason: str | None = None
+    evidence_guardrail_status: str = "not_applicable"
+    evidence_guardrail_reason: str | None = None
