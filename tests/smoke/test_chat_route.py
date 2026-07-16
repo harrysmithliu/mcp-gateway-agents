@@ -34,6 +34,8 @@ def test_chat_route_returns_structured_response() -> None:
         "actions",
         "citations",
         "planner_result",
+        "cache_status",
+        "cache_reason",
     }
     assert isinstance(payload["session_id"], str)
     assert isinstance(payload["reply_text"], str)
@@ -44,6 +46,8 @@ def test_chat_route_returns_structured_response() -> None:
     assert isinstance(payload["actions"], list)
     assert isinstance(payload["citations"], list)
     assert isinstance(payload["planner_result"], dict)
+    assert payload["cache_status"] == "disabled"
+    assert payload["cache_reason"] is None
 
     assert payload["planned_tool_calls"]
     first_planned_tool_call = payload["planned_tool_calls"][0]

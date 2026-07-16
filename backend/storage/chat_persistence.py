@@ -266,6 +266,9 @@ class ChatPersistenceCoordinator:
         agent_response: AgentResponse,
     ) -> None:
         self.record_stage(exchange, "persist_tool_invocation_logs")
+        if agent_response.cache_status == "hit":
+            exchange.tool_logs_persisted = True
+            return
         if not agent_response.tool_invocation_results:
             exchange.tool_logs_persisted = True
             return
@@ -317,9 +320,12 @@ class ChatPersistenceCoordinator:
                         "user_message_id": exchange.user_message_id,
                         "assistant_message_id": exchange.assistant_message_id,
                         "tool_names": list(agent_response.tool_names),
-                        "tool_invocation_count": len(
-                            agent_response.tool_invocation_results
+                        "tool_invocation_count": (
+                            0
+                            if agent_response.cache_status == "hit"
+                            else len(agent_response.tool_invocation_results)
                         ),
+                        "cache_status": agent_response.cache_status,
                         "planner_source": (
                             agent_response.planner_result.planner_source
                             if agent_response.planner_result is not None

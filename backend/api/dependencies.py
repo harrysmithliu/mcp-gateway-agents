@@ -8,6 +8,8 @@ from backend.auth.service import AuthService
 from backend.auth.tokens import JWTTokenService
 from backend.guardrails.policy import GuardrailPolicy
 from backend.agent.ports import ToolGatewayPort
+from backend.cache.policy import CacheEligibilityPolicy
+from backend.cache.redis import RedisResponseCache
 from backend.mcp_gateway.registry import build_default_registry
 from backend.mcp_gateway.sdk_adapter import MCPSDKAdapter
 from backend.mcp_gateway.transport import build_mcp_transport_router
@@ -86,6 +88,15 @@ def build_application_container() -> ApplicationContainer:
         settings=settings,
     )
     redis_chat_context_store = RedisChatContextStore(redis_url=settings.redis_url)
+    cache_policy = CacheEligibilityPolicy(
+        ttl_seconds=settings.response_cache_ttl_seconds,
+        key_prefix=settings.response_cache_key_prefix,
+    )
+    response_cache = (
+        RedisResponseCache(redis_url=settings.redis_url)
+        if settings.response_cache_enabled
+        else None
+    )
     chat_persistence_coordinator = ChatPersistenceCoordinator(
         storage_bundle=storage_bundle,
         redis_chat_context_store=redis_chat_context_store,
@@ -113,6 +124,9 @@ def build_application_container() -> ApplicationContainer:
             guardrail_policy=guardrail_policy,
             chat_persistence_coordinator=chat_persistence_coordinator,
             redis_chat_context_store=redis_chat_context_store,
+            response_cache=response_cache,
+            cache_policy=cache_policy,
+            response_cache_enabled=settings.response_cache_enabled,
         ),
         tool_registry=tool_gateway,
         retrieval_service=retrieval_service,

@@ -14,6 +14,17 @@ class CacheDecision(StrEnum):
     BYPASS = "bypass"
 
 
+class CacheStatus(StrEnum):
+    """Runtime status reported for one cache-aware chat request."""
+
+    DISABLED = "disabled"
+    HIT = "hit"
+    MISS = "miss"
+    BYPASS = "bypass"
+    UNAVAILABLE = "unavailable"
+    STORED = "stored"
+
+
 class CacheBypassReason(StrEnum):
     """Stable reasons explaining why a response must not enter the cache."""
 
@@ -100,3 +111,20 @@ class CacheEntry:
             "ttl_seconds": self.ttl_seconds,
             "created_at_epoch": self.created_at_epoch,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class CacheReadResult:
+    """Result of one cache read, including provider availability."""
+
+    status: CacheStatus
+    entry: CacheEntry | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CacheWriteResult:
+    """Result of one cache write, including provider availability."""
+
+    status: CacheStatus
+    reason: str | None = None

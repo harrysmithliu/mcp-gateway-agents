@@ -66,6 +66,8 @@ class ChatResult:
     actions: list[str] = field(default_factory=list)
     planner_result: PlannerResult | None = None
     citations: list[dict[str, object]] = field(default_factory=list)
+    cache_status: str = "disabled"
+    cache_reason: str | None = None
 
 
 AgentResponse = ChatResult

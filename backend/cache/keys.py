@@ -1,10 +1,30 @@
 import hashlib
 import json
+from collections.abc import Iterable
 
 from backend.cache.contracts import CACHE_CONTRACT_VERSION, CacheRequestContext
 
 
 DEFAULT_CACHE_KEY_PREFIX = "agent:response"
+
+
+def build_history_fingerprint(messages: Iterable[tuple[str, str]]) -> str:
+    """Build a stable digest for bounded planner history."""
+
+    normalized_messages = [
+        {
+            "role": role.strip().lower(),
+            "content": " ".join(content.split()),
+        }
+        for role, content in messages
+    ]
+    serialized_messages = json.dumps(
+        normalized_messages,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(serialized_messages).hexdigest()
 
 
 def build_cache_key(

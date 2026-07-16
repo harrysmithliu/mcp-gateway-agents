@@ -61,3 +61,5 @@ class ChatResponse(BaseModel):
     actions: list[str]
     citations: list[CitationResponse] = Field(default_factory=list)
     planner_result: PlannerResultResponse | None = None
+    cache_status: str = "disabled"
+    cache_reason: str | None = None

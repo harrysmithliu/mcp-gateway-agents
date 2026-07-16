@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from time import perf_counter
 
 from pydantic import ValidationError
@@ -11,6 +11,16 @@ from backend.agent.models import (
     PlannedToolCall,
     PlannerResult,
 )
+from backend.cache.contracts import (
+    CacheBypassReason,
+    CacheEntry,
+    CacheRequestContext,
+    CacheStatus,
+)
+from backend.cache.keys import build_history_fingerprint
+from backend.cache.policy import CacheEligibilityPolicy
+from backend.cache.ports import ResponseCachePort
+from backend.cache.serialization import deserialize_agent_response, serialize_agent_response
 from backend.agent.planning.langchain import (
     DEFAULT_LANGCHAIN_MODEL_NAME,
     DEFAULT_LANGCHAIN_MODEL_PROVIDER,
@@ -86,6 +96,10 @@ TOOL_ROUTING_RULES = (
 )
 DEFAULT_TOOL_NAME = "knowledge.search"
 DEFAULT_EVIDENCE_NOTE = "Defaulting to knowledge retrieval until more tools are wired."
+CACHEABLE_READ_ONLY_TOOLS = frozenset(
+    {"knowledge.search", "risk.score_account", "trade.query_metrics"}
+)
+DEFAULT_CACHE_CONTEXT_REVISION = "agent-runtime-v1"
 
 
 @dataclass(slots=True)
@@ -98,6 +112,10 @@ class AgentService:
     guardrail_policy: GuardrailPolicy = field(default_factory=GuardrailPolicy)
     chat_persistence_coordinator: ChatPersistenceCoordinator | None = None
     redis_chat_context_store: RedisChatContextStore | None = None
+    response_cache: ResponseCachePort | None = None
+    cache_policy: CacheEligibilityPolicy | None = None
+    response_cache_enabled: bool = False
+    cache_context_revision: str = DEFAULT_CACHE_CONTEXT_REVISION
 
     def describe(self) -> str:
         return (
@@ -741,6 +759,107 @@ class AgentService:
                 citations.append(citation)
         return citations
 
+    def _cache_is_active(self) -> bool:
+        return (
+            self.response_cache_enabled
+            and self.response_cache is not None
+            and self.cache_policy is not None
+        )
+
+    @staticmethod
+    def _authorization_scope(
+        authorization_context: dict[str, object] | None,
+    ) -> tuple[str, ...]:
+        if not isinstance(authorization_context, dict):
+            return ()
+        raw_scope = authorization_context.get("allowed_access_levels", ())
+        if isinstance(raw_scope, (list, tuple, set)):
+            return tuple(
+                value.strip()
+                for value in raw_scope
+                if isinstance(value, str) and value.strip()
+            )
+        access_level = authorization_context.get("access_level")
+        if isinstance(access_level, str) and access_level.strip():
+            return (access_level.strip(),)
+        return ()
+
+    def build_cache_request_context(
+        self,
+        command: ChatCommand,
+        normalized_role: str,
+        normalized_text: str,
+        session_id: str | None,
+        recent_messages: list[ChatHistoryMessage],
+        guardrail_decision,
+    ) -> CacheRequestContext:
+        history_fingerprint = build_history_fingerprint(
+            (message.role, message.content) for message in recent_messages
+        )
+        return CacheRequestContext(
+            normalized_text=normalized_text,
+            user_id=command.user_id,
+            normalized_role=normalized_role,
+            authorization_scope=self._authorization_scope(
+                command.authorization_context
+            ),
+            session_id=session_id,
+            history_fingerprint=history_fingerprint,
+            context_revision=self.cache_context_revision,
+            read_only=not bool(guardrail_decision.input_checks),
+            sensitive_action_requested=(
+                "sensitive_action_requested" in guardrail_decision.input_checks
+            ),
+            guardrail_escalation_required=guardrail_decision.escalation_required,
+        )
+
+    @staticmethod
+    def _cache_retrieval_status(
+        agent_response: AgentResponse,
+    ) -> str | None:
+        for result in agent_response.tool_invocation_results:
+            if result.tool_name != "knowledge.search":
+                continue
+            raw_status = result.response_payload.get("result_status")
+            return str(raw_status) if raw_status is not None else None
+        return None
+
+    @staticmethod
+    def _cacheable_response(agent_response: AgentResponse) -> bool:
+        if not agent_response.tool_invocation_results:
+            return False
+        if not set(agent_response.tool_names).issubset(CACHEABLE_READ_ONLY_TOOLS):
+            return False
+        return all(
+            result.invocation_status == "completed"
+            for result in agent_response.tool_invocation_results
+        )
+
+    def build_post_response_cache_context(
+        self,
+        request_context: CacheRequestContext,
+        agent_response: AgentResponse,
+    ) -> CacheRequestContext:
+        return replace(
+            request_context,
+            read_only=set(agent_response.tool_names).issubset(
+                CACHEABLE_READ_ONLY_TOOLS
+            ),
+            retrieval_status=self._cache_retrieval_status(agent_response),
+            response_cacheable=self._cacheable_response(agent_response),
+        )
+
+    @staticmethod
+    def set_cache_telemetry(
+        agent_response: AgentResponse,
+        status: CacheStatus,
+        reason: str | CacheBypassReason | None = None,
+    ) -> None:
+        agent_response.cache_status = status.value
+        agent_response.cache_reason = (
+            reason.value if isinstance(reason, CacheBypassReason) else reason
+        )
+
     def handle_command(
         self,
         command: ChatCommand,
@@ -781,12 +900,65 @@ class AgentService:
             )
             active_session_id = persistence_exchange.effective_session_id
 
+        guardrail_decision = self.guardrail_policy.build_decision(
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
+        )
+        cache_status = CacheStatus.DISABLED
+        cache_reason: str | None = None
+        cache_request_context = self.build_cache_request_context(
+            command=command,
+            normalized_role=normalized_role,
+            normalized_text=normalized_text,
+            session_id=active_session_id,
+            recent_messages=effective_recent_messages,
+            guardrail_decision=guardrail_decision,
+        )
+        cache_eligibility = None
+        if self._cache_is_active():
+            cache_eligibility = self.cache_policy.evaluate(cache_request_context)
+            if not cache_eligibility.eligible:
+                cache_status = CacheStatus.BYPASS
+                cache_reason = cache_eligibility.reason.value
+            else:
+                cache_read_result = self.response_cache.get(
+                    cache_eligibility.cache_key
+                )
+                cache_status = cache_read_result.status
+                cache_reason = cache_read_result.reason
+                if (
+                    cache_read_result.status is CacheStatus.HIT
+                    and cache_read_result.entry is not None
+                ):
+                    try:
+                        cached_response = deserialize_agent_response(
+                            dict(cache_read_result.entry.response_payload)
+                        )
+                    except (KeyError, TypeError, ValueError):
+                        cached_response = None
+                        cache_status = CacheStatus.MISS
+                        cache_reason = "invalid_response_payload"
+                    if cached_response is not None:
+                        cached_response.session_id = active_session_id
+                        self.set_cache_telemetry(cached_response, CacheStatus.HIT)
+                        if persistence_exchange is not None:
+                            self.chat_persistence_coordinator.finish_exchange(
+                                exchange=persistence_exchange,
+                                agent_response=cached_response,
+                            )
+                        return cached_response
+
         sensitive_action_response = self.build_sensitive_action_response(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
         )
         if sensitive_action_response is not None:
             sensitive_action_response.session_id = active_session_id
+            self.set_cache_telemetry(
+                sensitive_action_response,
+                cache_status,
+                cache_reason,
+            )
             if persistence_exchange is not None:
                 self.chat_persistence_coordinator.finish_exchange(
                     exchange=persistence_exchange,
@@ -822,6 +994,39 @@ class AgentService:
             actions=actions,
             planner_result=planner_result,
         )
+        self.set_cache_telemetry(agent_response, cache_status, cache_reason)
+        if (
+            self._cache_is_active()
+            and cache_eligibility is not None
+            and cache_eligibility.eligible
+            and cache_status is CacheStatus.MISS
+        ):
+            post_response_context = self.build_post_response_cache_context(
+                cache_request_context,
+                agent_response,
+            )
+            post_response_eligibility = self.cache_policy.evaluate(
+                post_response_context
+            )
+            if post_response_eligibility.eligible:
+                cache_entry = CacheEntry(
+                    cache_key=post_response_eligibility.cache_key,
+                    response_payload=serialize_agent_response(agent_response),
+                    ttl_seconds=post_response_eligibility.ttl_seconds,
+                )
+                cache_write_result = self.response_cache.set(cache_entry)
+                if cache_write_result.status is CacheStatus.UNAVAILABLE:
+                    self.set_cache_telemetry(
+                        agent_response,
+                        CacheStatus.UNAVAILABLE,
+                        cache_write_result.reason,
+                    )
+            else:
+                self.set_cache_telemetry(
+                    agent_response,
+                    CacheStatus.BYPASS,
+                    post_response_eligibility.reason,
+                )
         if persistence_exchange is not None:
             self.chat_persistence_coordinator.finish_exchange(
                 exchange=persistence_exchange,

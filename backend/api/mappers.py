@@ -83,6 +83,8 @@ def build_chat_response(
             ChatResponse.CitationResponse(**citation)
             for citation in agent_response.citations
         ],
+        cache_status=agent_response.cache_status,
+        cache_reason=agent_response.cache_reason,
         planner_result=(
             ChatResponse.PlannerResultResponse(
                 planner_source=agent_response.planner_result.planner_source,

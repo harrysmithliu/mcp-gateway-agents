@@ -210,6 +210,8 @@ def test_chat_route_preserves_structured_contract_after_command_refactor() -> No
         "actions",
         "citations",
         "planner_result",
+        "cache_status",
+        "cache_reason",
     }
 
 
