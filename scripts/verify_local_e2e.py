@@ -16,6 +16,10 @@ from backend.storage.settings import get_settings
 from frontend.services.chat import post_chat_message
 
 
+DEMO_USERNAME = "risk_operator_demo"
+DEMO_PASSWORD = "demo-password"
+
+
 def check_api_health(api_base_url: str) -> dict[str, object]:
     try:
         with request.urlopen(f"{api_base_url}/health", timeout=5.0) as response:
@@ -24,6 +28,31 @@ def check_api_health(api_base_url: str) -> dict[str, object]:
         raise RuntimeError(
             f"Unable to reach the backend health endpoint at {api_base_url}/health."
         ) from exc
+
+
+def login(api_base_url: str) -> str:
+    payload = json.dumps(
+        {"username": DEMO_USERNAME, "password": DEMO_PASSWORD}
+    ).encode("utf-8")
+    login_request = request.Request(
+        url=f"{api_base_url.rstrip('/')}/auth/login",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(login_request, timeout=5.0) as response:
+            login_payload = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        raise RuntimeError(
+            f"Demo login failed with HTTP {exc.code}."
+        ) from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"Unable to reach the login endpoint at {api_base_url}.") from exc
+    access_token = login_payload.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise RuntimeError("Demo login did not return an access token.")
+    return access_token
 
 
 def check_database_connection(database_client: DatabaseClient) -> None:
@@ -101,6 +130,7 @@ def main() -> int:
     )
     redis_store = RedisChatContextStore(redis_url=settings.redis_url)
     health_payload = check_api_health(api_base_url)
+    access_token = login(api_base_url)
     check_database_connection(database_client)
     check_redis_connection(redis_store)
 
@@ -111,6 +141,8 @@ def main() -> int:
             "review the trade wallet volume gamma, and create an alert for this suspicious risk review."
         ),
         api_base_url=api_base_url,
+        timeout_seconds=120.0,
+        access_token=access_token,
     )
     if first_response.session_id is None:
         raise RuntimeError("Chat API did not return a session_id.")
@@ -120,9 +152,14 @@ def main() -> int:
         message_text="Give me the next monitoring step for this same case.",
         session_id=first_response.session_id,
         api_base_url=api_base_url,
+        timeout_seconds=120.0,
+        access_token=access_token,
     )
 
-    redis_messages = redis_store.load_recent_messages(first_response.session_id)
+    redis_messages = redis_store.load_recent_messages(
+        first_response.session_id,
+        user_id=2,
+    )
     persistence_report = build_session_persistence_report(
         database_client=database_client,
         session_id=first_response.session_id,
@@ -136,8 +173,22 @@ def main() -> int:
         raise RuntimeError("Expected persisted tool invocation logs for the verification session.")
     if persistence_report["audit_events"] < 1:
         raise RuntimeError("Expected persisted audit events for the verification session.")
-    if persistence_report["risk_alerts"] < 1:
-        raise RuntimeError("Expected at least one persisted operational alert record.")
+    blocked_action = next(
+        (
+            result
+            for result in first_response.tool_invocation_results
+            if result.tool_name == "ops.create_alert_or_action"
+        ),
+        None,
+    )
+    if blocked_action is None or blocked_action.invocation_status != "blocked":
+        raise RuntimeError(
+            "Expected the high-impact operations action to be blocked before invocation."
+        )
+    if persistence_report["risk_alerts"] != 0:
+        raise RuntimeError(
+            "A blocked chat action must not create an operational alert record."
+        )
     if len(redis_messages) < 2:
         raise RuntimeError("Expected Redis short-term context to contain persisted chat messages.")
 
@@ -151,6 +202,7 @@ def main() -> int:
                 "second_turn_tool_names": second_response.tool_names,
                 "redis_message_count": len(redis_messages),
                 "postgres_persistence": persistence_report,
+                "blocked_action": blocked_action.invocation_status,
             },
             indent=2,
             sort_keys=True,
