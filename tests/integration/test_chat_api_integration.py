@@ -42,7 +42,7 @@ def test_chat_route_exposes_planner_result(monkeypatch) -> None:
     assert planner_result["fallback_reason"] == "langchain_output_unusable"
 
 
-def test_chat_route_forwards_message_history_context(monkeypatch) -> None:
+def test_chat_route_does_not_accept_unverified_client_history(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
     original_builder = AgentService.build_langchain_message_history_payload
 
@@ -90,11 +90,7 @@ def test_chat_route_forwards_message_history_context(monkeypatch) -> None:
     assert captured_payload["normalized_role"] == "analyst"
     assert captured_payload["normalized_text"] == "Review this account with prior context."
     recent_messages = captured_payload["recent_messages"]
-    assert [message.role for message in recent_messages] == ["user", "assistant"]
-    assert [message.content for message in recent_messages] == [
-        "Previous question",
-        "Previous answer",
-    ]
+    assert recent_messages == []
 
 
 def test_chat_route_closed_loop_with_langchain_contexts(monkeypatch) -> None:
@@ -165,7 +161,8 @@ def test_chat_route_closed_loop_with_langchain_contexts(monkeypatch) -> None:
 
     assert captured_payload["output_contract"]["fallback_tool"] == "knowledge.search"
     assert captured_payload["message_history"]["session_id"] == "session-closed-loop-success"
-    assert len(captured_payload["message_history"]["messages"]) == 3
+    assert len(captured_payload["message_history"]["messages"]) == 1
+    assert captured_payload["message_history"]["history_source"] == "current_turn_only"
     assert captured_payload["retrieval_context"]["rag_enabled"] is True
     assert captured_payload["retrieval_context"]["retrieved_chunks"]
     assert "ops_action_requested" in captured_payload["guardrail_context"]["input_checks"]

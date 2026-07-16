@@ -51,6 +51,8 @@ class ChatResponse(BaseModel):
         retrieval_result_count: int = 0
         grounded_chunk_count: int = 0
         grounding_truncated: bool = False
+        history_source: str = "current_turn_only"
+        history_fallback_reason: str | None = None
 
     session_id: str | None = None
     reply_text: str

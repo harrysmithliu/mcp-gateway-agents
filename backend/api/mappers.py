@@ -102,6 +102,10 @@ def build_chat_response(
                 retrieval_result_count=agent_response.planner_result.retrieval_result_count,
                 grounded_chunk_count=agent_response.planner_result.grounded_chunk_count,
                 grounding_truncated=agent_response.planner_result.grounding_truncated,
+                history_source=agent_response.planner_result.history_source,
+                history_fallback_reason=(
+                    agent_response.planner_result.history_fallback_reason
+                ),
             )
             if agent_response.planner_result is not None
             else None

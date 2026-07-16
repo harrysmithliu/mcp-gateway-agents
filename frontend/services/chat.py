@@ -42,6 +42,8 @@ class ChatApiPlannerResult:
     retrieval_result_count: int = 0
     grounded_chunk_count: int = 0
     grounding_truncated: bool = False
+    history_source: str = "current_turn_only"
+    history_fallback_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -168,6 +170,14 @@ def post_chat_message(
                 ),
                 grounding_truncated=bool(
                     response_payload["planner_result"].get("grounding_truncated", False)
+                ),
+                history_source=str(
+                    response_payload["planner_result"].get(
+                        "history_source", "current_turn_only"
+                    )
+                ),
+                history_fallback_reason=response_payload["planner_result"].get(
+                    "history_fallback_reason"
                 ),
             )
             if response_payload.get("planner_result") is not None

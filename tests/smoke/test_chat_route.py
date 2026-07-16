@@ -78,6 +78,8 @@ def test_chat_route_returns_structured_response() -> None:
         "retrieval_result_count",
         "grounded_chunk_count",
         "grounding_truncated",
+        "history_source",
+        "history_fallback_reason",
     }
 
 

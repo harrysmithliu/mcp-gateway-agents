@@ -49,6 +49,15 @@ class ChatSessionAccessError(PermissionError):
     """Raised when a chat session belongs to a different authenticated user."""
 
 
+@dataclass(frozen=True, slots=True)
+class ChatHistoryRestoration:
+    """Server-owned history with a stable source and fallback explanation."""
+
+    messages: list[ChatHistoryMessage] = field(default_factory=list)
+    source: str = "current_turn_only"
+    fallback_reason: str | None = None
+
+
 @dataclass(slots=True)
 class ChatPersistenceResult:
     """Progress marker for staged chat persistence rollout."""
@@ -103,6 +112,71 @@ class ChatPersistenceCoordinator:
 
     def build_message_id(self) -> str:
         return str(uuid4())
+
+    def restore_recent_messages(
+        self,
+        command: ChatCommand,
+        limit: int = 6,
+    ) -> ChatHistoryRestoration:
+        """Restore trusted history without accepting client message overrides."""
+
+        if not command.session_id or command.user_id is None:
+            return ChatHistoryRestoration(
+                fallback_reason="server_session_or_user_missing"
+            )
+
+        try:
+            session = self.storage_bundle.chat_session_repository.get_session(
+                command.session_id
+            )
+        except Exception:
+            return ChatHistoryRestoration(fallback_reason="session_lookup_failed")
+
+        if session is None:
+            return ChatHistoryRestoration(fallback_reason="session_not_found")
+
+        owner_id = session.get("user_id")
+        if owner_id is not None and int(owner_id) != command.user_id:
+            raise ChatSessionAccessError("Chat session belongs to another user.")
+
+        redis_fallback_reason: str | None = None
+        if self.redis_chat_context_store is not None:
+            redis_result = self.redis_chat_context_store.load_recent_messages_with_status(
+                session_id=command.session_id,
+                limit=limit,
+                user_id=command.user_id,
+            )
+            if redis_result.messages:
+                return ChatHistoryRestoration(
+                    messages=redis_result.messages,
+                    source="redis",
+                )
+            if not redis_result.available:
+                redis_fallback_reason = "redis_unavailable"
+
+        try:
+            durable_messages = self.storage_bundle.chat_message_repository.list_recent_messages(
+                session_id=command.session_id,
+                limit=limit,
+            )
+        except Exception:
+            return ChatHistoryRestoration(
+                fallback_reason=(
+                    "postgres_history_lookup_failed"
+                    if redis_fallback_reason is None
+                    else "redis_unavailable;postgres_history_lookup_failed"
+                )
+            )
+
+        if durable_messages:
+            return ChatHistoryRestoration(
+                messages=durable_messages,
+                source="postgresql",
+                fallback_reason=redis_fallback_reason,
+            )
+        return ChatHistoryRestoration(
+            fallback_reason=(redis_fallback_reason or "session_history_empty")
+        )
 
     def ensure_chat_session(
         self,
@@ -328,6 +402,16 @@ class ChatPersistenceCoordinator:
                         "cache_status": agent_response.cache_status,
                         "planner_source": (
                             agent_response.planner_result.planner_source
+                            if agent_response.planner_result is not None
+                            else None
+                        ),
+                        "history_source": (
+                            agent_response.planner_result.history_source
+                            if agent_response.planner_result is not None
+                            else "current_turn_only"
+                        ),
+                        "history_fallback_reason": (
+                            agent_response.planner_result.history_fallback_reason
                             if agent_response.planner_result is not None
                             else None
                         ),

@@ -50,6 +50,8 @@ def serialize_agent_response(response: AgentResponse) -> dict[str, object]:
                 "retrieval_result_count": response.planner_result.retrieval_result_count,
                 "grounded_chunk_count": response.planner_result.grounded_chunk_count,
                 "grounding_truncated": response.planner_result.grounding_truncated,
+                "history_source": response.planner_result.history_source,
+                "history_fallback_reason": response.planner_result.history_fallback_reason,
             }
             if response.planner_result is not None
             else None
@@ -86,6 +88,10 @@ def deserialize_agent_response(payload: dict[str, object]) -> AgentResponse:
                 planner_payload.get("grounded_chunk_count", 0) or 0
             ),
             grounding_truncated=bool(planner_payload.get("grounding_truncated", False)),
+            history_source=str(
+                planner_payload.get("history_source", "current_turn_only")
+            ),
+            history_fallback_reason=planner_payload.get("history_fallback_reason"),
         )
 
     return AgentResponse(

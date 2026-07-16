@@ -5,6 +5,14 @@ from typing import Any
 from backend.agent.models import ChatHistoryMessage
 
 
+@dataclass(frozen=True, slots=True)
+class RedisChatContextLoad:
+    """Result envelope that distinguishes an empty key from Redis failure."""
+
+    messages: list[ChatHistoryMessage]
+    available: bool
+
+
 @dataclass(slots=True)
 class RedisChatContextStore:
     """Minimal Redis-backed short-term chat context store."""
@@ -35,14 +43,26 @@ class RedisChatContextStore:
         limit: int | None = None,
         user_id: int | None = None,
     ) -> list[ChatHistoryMessage]:
+        return self.load_recent_messages_with_status(
+            session_id=session_id,
+            limit=limit,
+            user_id=user_id,
+        ).messages
+
+    def load_recent_messages_with_status(
+        self,
+        session_id: str | None,
+        limit: int | None = None,
+        user_id: int | None = None,
+    ) -> RedisChatContextLoad:
         if not session_id:
-            return []
+            return RedisChatContextLoad(messages=[], available=True)
 
         try:
             client = self._get_client()
             raw_messages = client.lrange(self._build_key(session_id, user_id), 0, -1)
         except Exception:
-            return []
+            return RedisChatContextLoad(messages=[], available=False)
 
         recent_messages: list[ChatHistoryMessage] = []
         for raw_message in raw_messages:
@@ -58,8 +78,11 @@ class RedisChatContextStore:
                 continue
 
         if limit is None:
-            return recent_messages
-        return recent_messages[-limit:]
+            return RedisChatContextLoad(messages=recent_messages, available=True)
+        return RedisChatContextLoad(
+            messages=recent_messages[-limit:],
+            available=True,
+        )
 
     def append_message(
         self,

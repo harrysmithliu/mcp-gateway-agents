@@ -869,8 +869,21 @@ class AgentService:
         normalized_text = command.message_text.strip()
         active_registry = registry or build_default_registry()
         effective_recent_messages = list(command.recent_messages)
+        history_source = "request_messages" if effective_recent_messages else "current_turn_only"
+        history_fallback_reason: str | None = None
 
-        if (
+        if self.chat_persistence_coordinator is not None:
+            restore_history = getattr(
+                self.chat_persistence_coordinator,
+                "restore_recent_messages",
+                None,
+            )
+            if callable(restore_history):
+                history_restoration = restore_history(command=command, limit=6)
+                effective_recent_messages = list(history_restoration.messages)
+                history_source = history_restoration.source
+                history_fallback_reason = history_restoration.fallback_reason
+        elif (
             not effective_recent_messages
             and command.session_id is not None
             and self.redis_chat_context_store is not None
@@ -886,6 +899,8 @@ class AgentService:
                     limit=6,
                     user_id=command.user_id,
                 )
+            if effective_recent_messages:
+                history_source = "redis"
 
         if not normalized_text:
             return AgentResponse(reply_text="Please provide a chat request.")
@@ -983,6 +998,13 @@ class AgentService:
             authorization_context=command.authorization_context,
         )
         evidence.extend(invocation_evidence)
+        planner_result.history_source = history_source
+        planner_result.history_fallback_reason = history_fallback_reason
+        evidence.append(f"Server history source: {history_source}.")
+        if history_fallback_reason is not None:
+            evidence.append(
+                f"Server history fallback reason: {history_fallback_reason}."
+            )
 
         agent_response = self.build_agent_response(
             normalized_role=normalized_role,
