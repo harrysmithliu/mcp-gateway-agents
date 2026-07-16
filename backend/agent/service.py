@@ -644,6 +644,7 @@ class AgentService:
         planned_tool_calls: list[PlannedToolCall],
         registry: ToolGatewayPort,
         authorization_context: dict[str, object] | None = None,
+        evidence_context: dict[str, object] | None = None,
     ) -> tuple[list[ToolInvocationResult], list[str]]:
         tool_invocation_results: list[ToolInvocationResult] = []
         evidence: list[str] = []
@@ -658,6 +659,33 @@ class AgentService:
         if authorization_context is not None:
             request_payload["authorization_context"] = authorization_context
         for planned_tool_call in planned_tool_calls:
+            enforcement_decision = self.guardrail_policy.enforce_tool_invocation(
+                tool_name=planned_tool_call.tool_name,
+                normalized_role=normalized_role,
+                authorization_context=authorization_context,
+                evidence_context=evidence_context,
+            )
+            if not enforcement_decision.allowed:
+                tool_invocation_result = ToolInvocationResult(
+                    tool_name=planned_tool_call.tool_name,
+                    domain=planned_tool_call.domain,
+                    invocation_status="blocked",
+                    request_payload=request_payload,
+                    response_payload={
+                        "message": (
+                            f"Tool invocation blocked by guardrail: "
+                            f"{enforcement_decision.reason}."
+                        ),
+                        "guardrail": enforcement_decision.to_payload(),
+                    },
+                    transport="guardrail",
+                )
+                tool_invocation_results.append(tool_invocation_result)
+                evidence.append(
+                    f"Tool invocation blocked for {planned_tool_call.tool_name}: "
+                    f"{enforcement_decision.reason}."
+                )
+                continue
             tool_invocation_result = registry.invoke(
                 tool_name=planned_tool_call.tool_name,
                 request_payload=request_payload,
@@ -990,12 +1018,26 @@ class AgentService:
                 recent_messages=effective_recent_messages,
             )
         )
+        evidence_context = {
+            "retrieval_status": getattr(planner_result, "retrieval_status", None),
+            "retrieval_result_count": getattr(
+                planner_result, "retrieval_result_count", 0
+            ),
+            "grounded_chunk_count": getattr(
+                planner_result, "grounded_chunk_count", 0
+            ),
+            "has_grounded_evidence": (
+                getattr(planner_result, "retrieval_status", None) == "completed"
+                and getattr(planner_result, "grounded_chunk_count", 0) > 0
+            ),
+        }
         tool_invocation_results, invocation_evidence = self.invoke_planned_tool_calls(
             normalized_role=normalized_role,
             normalized_text=normalized_text,
             planned_tool_calls=planned_tool_calls,
             registry=active_registry,
             authorization_context=command.authorization_context,
+            evidence_context=evidence_context,
         )
         evidence.extend(invocation_evidence)
         planner_result.history_source = history_source

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Mapping
 
 from backend.agent.models import AgentResponse
 
@@ -6,6 +7,7 @@ SENSITIVE_ACTION_KEYWORDS = ("freeze", "release", "unlock")
 SENSITIVE_ACTION_ALLOWED_ROLES = frozenset({"supervisor", "admin"})
 ACTION_ENABLED_ROLES = frozenset({"risk_operator", "supervisor", "admin"})
 OPS_ACTION_KEYWORDS = ("alert", "review", "escalate")
+HIGH_IMPACT_TOOL_NAMES = frozenset({"ops.create_alert_or_action"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,12 +28,97 @@ class GuardrailDecision:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ToolEnforcementDecision:
+    """Pre-invocation decision for a potentially high-impact tool."""
+
+    tool_name: str
+    allowed: bool
+    reason: str
+    required_approval: bool = False
+    approval_status: str = "not_provided"
+    evidence_required: bool = False
+    evidence_present: bool = False
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "tool_name": self.tool_name,
+            "allowed": self.allowed,
+            "reason": self.reason,
+            "required_approval": self.required_approval,
+            "approval_status": self.approval_status,
+            "evidence_required": self.evidence_required,
+            "evidence_present": self.evidence_present,
+        }
+
+
 @dataclass(slots=True)
 class GuardrailPolicy:
     """Placeholder for future response and action checks."""
 
     require_evidence_for_sensitive_actions: bool = True
     block_unapproved_high_impact_actions: bool = True
+    require_approval_for_high_impact_tools: bool = True
+    require_evidence_for_high_impact_tools: bool = True
+
+    def enforce_tool_invocation(
+        self,
+        tool_name: str,
+        normalized_role: str,
+        authorization_context: Mapping[str, object] | None = None,
+        evidence_context: Mapping[str, object] | None = None,
+    ) -> ToolEnforcementDecision:
+        """Enforce action permissions before any registry handler is called."""
+
+        if tool_name not in HIGH_IMPACT_TOOL_NAMES:
+            return ToolEnforcementDecision(
+                tool_name=tool_name,
+                allowed=True,
+                reason="not_high_impact",
+            )
+
+        if normalized_role not in ACTION_ENABLED_ROLES:
+            return ToolEnforcementDecision(
+                tool_name=tool_name,
+                allowed=False,
+                reason="role_not_permitted",
+            )
+
+        authorization_context = authorization_context or {}
+        approval_status = str(
+            authorization_context.get("approval_status", "not_provided")
+        ).strip().lower()
+        if self.require_approval_for_high_impact_tools and approval_status != "approved":
+            return ToolEnforcementDecision(
+                tool_name=tool_name,
+                allowed=False,
+                reason="approval_required",
+                required_approval=True,
+                approval_status=approval_status,
+            )
+
+        evidence_context = evidence_context or {}
+        evidence_present = bool(evidence_context.get("has_grounded_evidence", False))
+        if self.require_evidence_for_high_impact_tools and not evidence_present:
+            return ToolEnforcementDecision(
+                tool_name=tool_name,
+                allowed=False,
+                reason="evidence_required",
+                required_approval=self.require_approval_for_high_impact_tools,
+                approval_status=approval_status,
+                evidence_required=self.require_evidence_for_high_impact_tools,
+                evidence_present=False,
+            )
+
+        return ToolEnforcementDecision(
+            tool_name=tool_name,
+            allowed=True,
+            reason="allowed",
+            required_approval=self.require_approval_for_high_impact_tools,
+            approval_status=approval_status,
+            evidence_required=self.require_evidence_for_high_impact_tools,
+            evidence_present=True,
+        )
 
     def build_decision(
         self,

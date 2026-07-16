@@ -121,4 +121,15 @@ def test_chat_route_returns_multiple_tool_invocation_results() -> None:
     assert all(
         item["invocation_status"] == "completed"
         for item in payload["tool_invocation_results"]
+        if item["tool_name"] != "ops.create_alert_or_action"
+    )
+    blocked_ops_result = next(
+        item
+        for item in payload["tool_invocation_results"]
+        if item["tool_name"] == "ops.create_alert_or_action"
+    )
+    assert blocked_ops_result["invocation_status"] == "blocked"
+    assert (
+        blocked_ops_result["response_payload"]["guardrail"]["reason"]
+        == "role_not_permitted"
     )

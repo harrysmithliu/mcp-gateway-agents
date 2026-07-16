@@ -157,7 +157,13 @@ def test_chat_route_closed_loop_with_langchain_contexts(monkeypatch) -> None:
     assert all(
         item["invocation_status"] == "completed"
         for item in payload["tool_invocation_results"]
+        if item["tool_name"] != "ops.create_alert_or_action"
     )
+    assert next(
+        item
+        for item in payload["tool_invocation_results"]
+        if item["tool_name"] == "ops.create_alert_or_action"
+    )["invocation_status"] == "blocked"
 
     assert captured_payload["output_contract"]["fallback_tool"] == "knowledge.search"
     assert captured_payload["message_history"]["session_id"] == "session-closed-loop-success"
@@ -243,7 +249,13 @@ def test_chat_route_closed_loop_fallback_preserves_context(monkeypatch) -> None:
     assert all(
         item["invocation_status"] == "completed"
         for item in payload["tool_invocation_results"]
+        if item["tool_name"] != "ops.create_alert_or_action"
     )
+    assert next(
+        item
+        for item in payload["tool_invocation_results"]
+        if item["tool_name"] == "ops.create_alert_or_action"
+    )["invocation_status"] == "blocked"
 
     assert captured_payload["message_history"]["session_id"] == "session-closed-loop-fallback"
     assert captured_payload["retrieval_context"]["rag_enabled"] is True
