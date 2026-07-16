@@ -15,6 +15,15 @@ class Settings:
         "postgresql://postgres:postgres@localhost:5432/mcp_gateway_agents",
     )
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    response_cache_enabled: bool = os.getenv(
+        "RESPONSE_CACHE_ENABLED", "false"
+    ).lower() in {"1", "true", "yes", "on"}
+    response_cache_ttl_seconds: int = int(
+        os.getenv("RESPONSE_CACHE_TTL_SECONDS", "300")
+    )
+    response_cache_key_prefix: str = os.getenv(
+        "RESPONSE_CACHE_KEY_PREFIX", "agent:response"
+    )
     auth_mode: str = os.getenv("AUTH_MODE", "local_jwt")
     auth_jwt_secret: str = os.getenv("AUTH_JWT_SECRET", "")
     auth_jwt_issuer: str = os.getenv("AUTH_JWT_ISSUER", "mcp-gateway-agents")
