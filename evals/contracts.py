@@ -4,7 +4,9 @@ from dataclasses import asdict, dataclass, field
 from typing import Mapping
 
 
-VALID_INVOCATION_STATUSES = frozenset({"completed", "failed", "unavailable"})
+VALID_INVOCATION_STATUSES = frozenset(
+    {"completed", "failed", "unavailable", "blocked"}
+)
 VALID_RETRIEVAL_STATUSES = frozenset(
     {"completed", "empty", "failed", "unavailable", "disabled"}
 )

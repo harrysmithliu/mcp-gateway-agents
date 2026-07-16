@@ -22,6 +22,8 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Verifies Compose readiness, idempotent SQL bootstrap, controlled knowledge persistence, admin refresh, analyst citations, HTTP/Agent/MCP retrieval parity and disabled retrieval closure without calling a paid LLM API.
 - `uv run --env-file .env --no-sync python scripts/run_agent_evaluation.py`
   Runs the versioned deterministic Agent evaluation dataset through the in-process target and writes a machine-readable report under `artifacts/evaluations/`.
+- `uv run --no-sync python scripts/verify_batch6_closure.py`
+  Runs the offline Batch 6 closure verifier for cache hit/miss and Redis fallback, bounded memory, pre-invocation action blocking, evidence downgrade, and the versioned deterministic evaluation dataset without a paid LLM API.
 - `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py`
   Applies local migrations, writes and reads a risk batch score, transitions a risk alert, and verifies its audit history.
 - `uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py`

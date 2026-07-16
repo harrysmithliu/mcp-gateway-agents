@@ -100,6 +100,14 @@ uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py
 
 This verifies account investigation access, risk batch scoring, risk-operator alert acknowledgement, supervisor approval, audit review, and the corresponding analyst denials. It prints role and status metadata only; bearer tokens are never printed.
 
+For the offline Batch 6 closure checks, run:
+
+```bash
+uv run --no-sync python scripts/verify_batch6_closure.py
+```
+
+This verifies cache hit/miss and Redis-unavailable fallback, bounded planner memory, pre-invocation action blocking, evidence downgrade, and the versioned deterministic evaluation dataset without calling a paid LLM API.
+
 ## 7. Manual Demo Flow
 
 Open Streamlit and use the default chat prompt or a richer one such as:
