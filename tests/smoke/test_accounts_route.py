@@ -1,17 +1,15 @@
 import sys
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.api.app import app
+from tests.smoke.http_helpers import build_demo_client
 
 
 def test_account_investigation_route_returns_composed_payload() -> None:
-    client = TestClient(app)
+    client = build_demo_client("analyst_demo")
 
     response = client.get("/accounts/acct-atlas-01/investigation")
 
@@ -25,7 +23,7 @@ def test_account_investigation_route_returns_composed_payload() -> None:
 
 
 def test_account_search_route_returns_ranked_accounts() -> None:
-    client = TestClient(app)
+    client = build_demo_client("analyst_demo")
 
     response = client.post(
         "/accounts/search",
@@ -40,7 +38,7 @@ def test_account_search_route_returns_ranked_accounts() -> None:
 
 
 def test_account_overview_route_returns_account_detail() -> None:
-    client = TestClient(app)
+    client = build_demo_client("analyst_demo")
 
     response = client.get("/accounts/acct-atlas-01/overview")
 
@@ -53,7 +51,7 @@ def test_account_overview_route_returns_account_detail() -> None:
 
 
 def test_account_activity_summary_route_returns_recent_activity() -> None:
-    client = TestClient(app)
+    client = build_demo_client("analyst_demo")
 
     response = client.get("/accounts/acct-atlas-01/activity-summary")
 
