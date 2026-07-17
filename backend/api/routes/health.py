@@ -10,10 +10,13 @@ router = APIRouter(tags=["health"])
 @router.get("/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
     settings = get_settings()
-    retrieval_status = get_application_container(request).retrieval_service.runtime_status()
+    container = get_application_container(request)
+    retrieval_status = container.retrieval_service.runtime_status()
+    readiness_report = container.runtime_readiness_service.check()
     return HealthResponse(
         status="ok",
         app_name=settings.app_name,
         environment=settings.app_env,
         retrieval=retrieval_status.to_payload(),
+        readiness=readiness_report.to_payload(),
     )

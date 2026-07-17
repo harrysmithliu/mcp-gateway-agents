@@ -6,6 +6,7 @@ from backend.agent.service import AgentService
 from backend.auth.passwords import PasswordService
 from backend.auth.service import AuthService
 from backend.auth.tokens import JWTTokenService
+from backend.diagnostics.readiness import RuntimeReadinessService
 from backend.guardrails.policy import GuardrailPolicy
 from backend.agent.ports import ToolGatewayPort
 from backend.cache.policy import CacheEligibilityPolicy
@@ -57,6 +58,7 @@ class ApplicationContainer:
     chat_persistence_coordinator: ChatPersistenceCoordinator
     redis_chat_context_store: RedisChatContextStore
     auth_service: AuthService
+    runtime_readiness_service: RuntimeReadinessService
 
 
 def build_application_container() -> ApplicationContainer:
@@ -118,6 +120,16 @@ def build_application_container() -> ApplicationContainer:
         transport_mode=settings.mcp_transport_mode,
         server_runtime=settings.mcp_server_runtime,
     )
+    runtime_readiness_service = RuntimeReadinessService(
+        settings=settings,
+        database_client=storage_bundle.database_client,
+        redis_chat_context_store=redis_chat_context_store,
+        retrieval_service=retrieval_service,
+        response_cache_enabled=settings.response_cache_enabled,
+        response_cache_ttl_seconds=settings.response_cache_ttl_seconds,
+        response_cache_key_prefix=settings.response_cache_key_prefix,
+        tool_registry=tool_gateway,
+    )
     return ApplicationContainer(
         agent_service=AgentService(
             retrieval_service=retrieval_service,
@@ -153,6 +165,7 @@ def build_application_container() -> ApplicationContainer:
         chat_persistence_coordinator=chat_persistence_coordinator,
         redis_chat_context_store=redis_chat_context_store,
         auth_service=auth_service,
+        runtime_readiness_service=runtime_readiness_service,
     )
 
 

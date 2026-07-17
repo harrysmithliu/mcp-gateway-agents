@@ -35,6 +35,7 @@ def test_create_app_initializes_application_container() -> None:
     assert created_app.state.container.storage_bundle is not None
     assert created_app.state.container.chat_persistence_coordinator is not None
     assert created_app.state.container.redis_chat_context_store is not None
+    assert created_app.state.container.runtime_readiness_service is not None
 
 
 def test_chat_route_uses_app_level_container_dependencies() -> None:
@@ -100,6 +101,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
+        runtime_readiness_service=original_container.runtime_readiness_service,
     )
 
     try:
@@ -175,6 +177,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
+        runtime_readiness_service=original_container.runtime_readiness_service,
     )
 
     try:
@@ -244,6 +247,7 @@ def test_account_investigation_route_uses_app_level_service_dependency() -> None
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
+        runtime_readiness_service=original_container.runtime_readiness_service,
     )
 
     try:

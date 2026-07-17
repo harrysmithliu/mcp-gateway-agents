@@ -22,3 +22,11 @@ def test_health_route_returns_public_health_payload() -> None:
     assert isinstance(payload["environment"], str)
     assert payload["retrieval"]["state"] in {"ready", "disabled", "unavailable"}
     assert isinstance(payload["retrieval"]["enabled"], bool)
+    assert payload["readiness"]["state"] in {
+        "ready",
+        "degraded",
+        "unavailable",
+    }
+    assert isinstance(payload["readiness"]["components"], list)
+    assert "password" not in str(payload["readiness"])
+    assert "token" not in str(payload["readiness"])

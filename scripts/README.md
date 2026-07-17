@@ -10,6 +10,8 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Applies local SQL migrations and seed files to the configured PostgreSQL database in deterministic filename order.
 - `uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope runtime`
   Prints a redacted dry-run plan by default. Add `--confirm` only when the local runtime state should be cleared; use `--scope demo` to also clear knowledge and reseed demo identities.
+- `uv run --no-sync python scripts/doctor_local_runtime.py`
+  Runs read-only backend readiness and frontend reachability checks and prints a stable JSON report. Add `--require-frontend` when both local services are required; this command never starts, migrates, seeds, resets, or downloads a model.
 - `python3 scripts/verify_knowledge_ingestion.py`
   Applies the local SQL plan, ingests the default knowledge source set into PostgreSQL/pgvector, and prints a JSON report that verifies persisted documents, chunks, and embeddings.
 - `python3 scripts/verify_local_e2e.py`
