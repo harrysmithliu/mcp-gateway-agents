@@ -1,114 +1,125 @@
 # Local Runbook
 
-This runbook is the shortest supported path for another developer to pull the repository, start the local runtime, seed the platform-owned state, and verify the authenticated product workflow with real PostgreSQL and Redis services.
+This runbook is the supported local path for starting the authenticated platform with project-owned PostgreSQL/pgvector, Redis, FastAPI, and Streamlit services.
 
 ## Prerequisites
 
-- Python 3.11+
-- Docker Desktop or another local Docker runtime with Compose support, already running
-- an activated virtual environment
-- project dependencies installed from `pyproject.toml`
+- Python 3.11 or newer
+- `uv` for locked local dependency installation
+- Docker Desktop or another Docker Compose runtime, already running
+- access to the repository directory
+
+The default local workflow does not require an Anthropic API key. The local embedding model is downloaded on first use when it is not already present in the Hugging Face cache.
 
 ## 1. Prepare Environment
 
 ```bash
 cp .env.example .env
-python3 -m pip install -e .
 ```
 
-Default local values already point to:
+For local JWT authentication, replace `AUTH_JWT_SECRET` in `.env` with a random local value. Keep `ANTHROPIC_API_KEY` blank unless the explicit paid planner smoke is being run.
 
-- PostgreSQL: `postgresql://postgres:postgres@localhost:5432/mcp_gateway_agents`
-- Redis: `redis://localhost:6379/0`
+Install the locked dependencies once:
+
+```bash
+uv sync --dev
+```
+
+## 2. Start The Local Stack
+
+The recommended path builds and starts all four services. Backend startup applies the project SQL plan, including migrations and seeds, before serving FastAPI.
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+Expected services:
+
+- PostgreSQL/pgvector: `localhost:5432`
+- Redis: `localhost:6379`
 - FastAPI: `http://127.0.0.1:8000`
 - Streamlit: `http://127.0.0.1:8501`
 
-## 2. Start PostgreSQL And Redis
+## 3. Verify The First Startup
+
+```bash
+curl http://127.0.0.1:8000/health
+uv run --no-sync python scripts/doctor_local_runtime.py --require-frontend
+```
+
+The health payload reports retrieval and component readiness. The doctor command is read-only and reports actionable degraded/unavailable states without printing credentials.
+
+## 4. Sign In Through The Application
+
+Open `http://127.0.0.1:8501/`. Sign in from the Home page sidebar using one of the seeded local demo users:
+
+- `analyst_demo` for evidence and investigation flows
+- `risk_operator_demo` for scoring and alert acknowledgement
+- `supervisor_demo` for approval and audit review
+- `admin_demo` for knowledge administration and System Status
+
+The local seed uses `demo-password` for these demo identities. Change or replace this local-only seed before any non-demo deployment.
+
+The admin-only `System Status` page exposes readiness, migration, runtime mode, and MCP visibility as a read-only, redacted operational view.
+
+## 5. Optional Host-Process Path
+
+Use this path when PostgreSQL and Redis are already running separately and the application processes should run on the host:
 
 ```bash
 docker compose up -d postgres redis
+uv run --env-file .env --no-sync python scripts/bootstrap_local_state.py
+uv run --env-file .env --no-sync streamlit run frontend/app.py
+uv run --env-file .env --no-sync uvicorn backend.api.app:app --reload --port 8000
 ```
 
-Wait until both containers are healthy.
+Run the backend and frontend commands in separate terminals. When using Compose for the application services, do not start a second host process on ports `8000` or `8501`.
 
-If `docker compose` reports that it cannot connect to the Docker daemon, start Docker Desktop first and rerun the command.
+## 6. Safe Local Operations
 
-## 3. Apply Migrations And Seed Core State
+When running application processes on the host, apply the SQL plan explicitly:
 
 ```bash
-python3 scripts/bootstrap_local_state.py
-python3 scripts/seed_demo_data.py
+uv run --env-file .env --no-sync python scripts/bootstrap_local_state.py
+uv run --env-file .env --no-sync python scripts/seed_demo_data.py
 ```
 
-Expected outcome:
+`bootstrap_local_state.py` is idempotent and records applied files in `public.local_sql_scripts`. `seed_demo_data.py` validates the canonical local demo datasets; it does not call a paid model.
 
-- all SQL migrations under `sql/migrations/` are applied
-- core role seed under `sql/seeds/` is applied
-- canonical demo datasets under `data/demo/` are validated and summarized
-
-## 4. Start Application Services
-
-Backend:
+Inspect reset effects before changing local state:
 
 ```bash
-uvicorn backend.api.app:app --reload --port 8000
+uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope runtime
 ```
 
-Frontend:
+The reset command is dry-run by default. Only use `--confirm` after verifying the target is the project-owned local PostgreSQL/Redis runtime. Use `--scope demo` only when knowledge, identities, and demo records should also be rebuilt. The reset flow does not drop the database, delete Docker volumes, or touch external resources.
+
+## 7. Verification Paths
+
+Read-only runtime diagnosis:
 
 ```bash
-streamlit run frontend/app.py
+uv run --no-sync python scripts/doctor_local_runtime.py --require-frontend
 ```
 
-## 5. Verify Service Availability
-
-- API health: `http://127.0.0.1:8000/health`
-- Streamlit shell: `http://127.0.0.1:8501`
-
-The frontend should show:
-
-- active role selector
-- current chat session indicator
-- reset chat session button
-- chat form and tool debug panel
-- Account Investigation, Risk Scoring, Alerts, and Audit Review pages
-
-## 6. Run End-To-End Verification
-
-With the backend running:
+Offline verification with no PostgreSQL, Redis, model download, or paid API:
 
 ```bash
-python3 scripts/verify_local_e2e.py
+uv run --no-sync python scripts/verify_delivery.py --profile offline
 ```
 
-The verification script uses the frontend HTTP client seam to call `/chat`, then confirms:
-
-- a persisted `convo.chat_sessions` row exists
-- persisted `convo.chat_messages` rows exist
-- persisted `audit.tool_call_logs` rows exist
-- persisted `audit.audit_events` rows exist
-- a persisted `risk.risk_alerts` row exists
-- Redis short-term context contains the chat session messages
-
-The script prints a JSON report with the `session_id`, selected tool names, Redis message count, and PostgreSQL persistence counts.
-
-For the authenticated analyst-to-risk-operator-to-supervisor workflow, run:
+Local Compose verification, including state-mutating workflow stages:
 
 ```bash
-uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py
+uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local
 ```
 
-This verifies account investigation access, risk batch scoring, risk-operator alert acknowledgement, supervisor approval, audit review, and the corresponding analyst denials. It prints role and status metadata only; bearer tokens are never printed.
+The local chat persistence verifier checks sessions, messages, tool invocation logs, audit events, and Redis context. Its high-impact operations action is expected to be blocked before invocation; it must not create a `risk.risk_alerts` operational record.
 
-For the offline Batch 6 closure checks, run:
+The authenticated workflow verifier checks analyst, risk operator, and supervisor access, scoring, approval, and audit behavior. The paid Anthropic planner is never part of these default paths.
 
-```bash
-uv run --no-sync python scripts/verify_batch6_closure.py
-```
-
-This verifies cache hit/miss and Redis-unavailable fallback, bounded planner memory, pre-invocation action blocking, evidence downgrade, and the versioned deterministic evaluation dataset without calling a paid LLM API.
-
-## 7. Manual Demo Flow
+## 8. Manual Demo Flow
 
 Open Streamlit and use the default chat prompt or a richer one such as:
 
@@ -123,9 +134,11 @@ Expected manual results:
 - evidence notes and recommended actions are rendered
 - sending a second message continues the same session unless `Reset Chat Session` is clicked
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
-- If `bootstrap_local_state.py` fails, verify PostgreSQL is up on port `5432`.
-- If `verify_local_e2e.py` cannot reach the API, verify `uvicorn` is running on port `8000`.
-- If Redis validation fails, verify the Redis container is up on port `6379`.
-- If the frontend cannot talk to the backend, verify both services use the same local host and port values from `.env`.
+- If Compose cannot connect to the Docker daemon, start Docker Desktop and rerun the command.
+- If PostgreSQL or Redis is unavailable, check `docker compose ps` and verify ports `5432` and `6379`.
+- If the API is unavailable, check `docker compose logs backend` or verify the host `uvicorn` process on port `8000`.
+- If the frontend cannot reach the backend, use `API_BASE_URL=http://localhost:8000` for host execution; Compose supplies `http://backend:8000` inside the frontend container.
+- If retrieval reports unavailable because the model is not cached, allow the first local model download or set `EMBEDDING_LOCAL_FILES_ONLY=true` to require an existing cache.
+- If a rebuilt endpoint returns `404`, rebuild and recreate the backend/frontend images with `docker compose up -d --build backend frontend`.

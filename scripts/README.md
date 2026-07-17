@@ -1,46 +1,50 @@
 # Scripts
 
-This directory contains setup, seeding, indexing, and utility scripts.
+These commands support local setup, state management, diagnostics, deterministic verification, and explicit provider smoke tests. Run them from the repository root.
 
-## Available Scripts
+## Setup And Data
 
-- `python3 scripts/seed_demo_data.py`
-  Validates the canonical demo datasets under `data/demo/` and prints a JSON summary with dataset paths and record counts for local trade, risk, knowledge, and operations demos.
-- `python3 scripts/bootstrap_local_state.py`
-  Applies local SQL migrations and seed files to the configured PostgreSQL database in deterministic filename order.
-- `uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope runtime`
-  Prints a redacted dry-run plan by default. Add `--confirm` only when the local runtime state should be cleared; use `--scope demo` to also clear knowledge and reseed demo identities.
-- `uv run --no-sync python scripts/doctor_local_runtime.py`
-  Runs read-only backend readiness and frontend reachability checks and prints a stable JSON report. Add `--require-frontend` when both local services are required; this command never starts, migrates, seeds, resets, or downloads a model.
-- `uv run --no-sync python scripts/verify_delivery.py --list-stages`
-  Lists the delivery verification stages, dependencies, runtime requirements, local-state mutation markers, and paid-provider boundaries.
-- `uv run --no-sync python scripts/verify_delivery.py --profile offline`
-  Runs the cache/guardrail closure, including its deterministic `core_v1` assertions, without requiring PostgreSQL, Redis, frontend, embedding downloads, or an Anthropic API key.
-- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local`
-  Runs readiness, knowledge evidence state, RAG/MCP parity, authenticated workflows, cache/guardrail closure, and deterministic evaluation against the local Compose runtime. The data-state and workflow stages may write project-owned local records.
-- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --stage anthropic_planner --allow-paid-provider`
-  Explicitly opts into exactly one Anthropic planner smoke request; it is excluded from every default profile and delivery check.
-- `python3 scripts/verify_knowledge_ingestion.py`
-  Applies the local SQL plan, ingests the default knowledge source set into PostgreSQL/pgvector, and prints a JSON report that verifies persisted documents, chunks, and embeddings.
-- `python3 scripts/verify_local_e2e.py`
-  Uses the frontend HTTP client seam against a live local backend, then checks PostgreSQL and user-scoped Redis to verify a real persisted chat session, messages, tool logs, audit events, and a blocked high-impact action without creating an operational alert record.
-- `uv run --env-file .env --no-sync python scripts/verify_anthropic_planner.py`
-  Performs exactly one live Anthropic structured-planner request and prints only safe planner metadata; it does not retry or use the legacy fallback path.
-- `uv run --no-sync python scripts/verify_mcp_transport.py`
-  Runs one local `sdk_stdio` knowledge tool call and prints safe transport and canonical knowledge metadata; set `MCP_SERVER_RUNTIME=runtime` to use the configured retrieval runtime.
-- `uv run --env-file .env --no-sync python scripts/verify_round6_mcp_retrieval.py`
-  Verifies server-owned analyst/admin access scopes, canonical HTTP/Agent/MCP retrieval semantics, citation stability and the disabled retrieval contract without calling a paid LLM API.
-- `uv run --env-file .env --no-sync python scripts/verify_round8_evidence_layer.py`
-  Verifies Compose readiness, idempotent SQL bootstrap, controlled knowledge persistence, admin refresh, analyst citations, HTTP/Agent/MCP retrieval parity and disabled retrieval closure without calling a paid LLM API.
-- `uv run --env-file .env --no-sync python scripts/run_agent_evaluation.py`
-  Runs the versioned deterministic Agent evaluation dataset through the in-process target and writes a machine-readable report under `artifacts/evaluations/`.
-- `uv run --no-sync python scripts/verify_batch6_closure.py`
-  Runs the offline Batch 6 closure verifier for cache hit/miss and Redis fallback, bounded memory, pre-invocation action blocking, evidence downgrade, and the versioned deterministic evaluation dataset without a paid LLM API.
-- `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py`
-  Applies local migrations, writes and reads a risk batch score, transitions a risk alert, and verifies its audit history.
-- `uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py`
-  Verifies authenticated analyst, risk operator, and supervisor workflows, including account investigation access, risk scoring, alert acknowledgement, approval decision, and audit authorization.
-- `uv run --env-file .env --no-sync python scripts/verify_round4_ingestion.py`
-  Applies local migrations, verifies admin-only knowledge refresh, checks source manifest and persisted RAG counts, and confirms the success audit event.
-- `uv run --env-file .env --no-sync python scripts/verify_round5_refresh.py`
-  Verifies repeatable knowledge refresh, no-op behavior on unchanged sources, and PostgreSQL/pgvector referential and vector-dimension integrity.
+- `uv run --env-file .env --no-sync python scripts/bootstrap_local_state.py` applies SQL migrations and seeds in deterministic filename order. It writes only to the configured project-owned PostgreSQL runtime.
+- `uv run --env-file .env --no-sync python scripts/seed_demo_data.py` validates canonical local trade, risk, knowledge, and operations datasets. It does not call a paid model.
+
+## Local State
+
+- `uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope runtime` prints a redacted dry-run reset plan. Add `--confirm` only for an intentional local runtime reset.
+- `uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope demo` includes project-owned knowledge, identities, and demo records. It never drops the database, deletes Docker volumes, or touches external resources.
+
+## Readiness And Delivery
+
+- `uv run --no-sync python scripts/doctor_local_runtime.py --require-frontend` performs read-only backend and frontend reachability checks and prints a stable JSON report.
+- `uv run --no-sync python scripts/verify_delivery.py --list-stages` prints the available verification stages, dependencies, runtime requirements, local-state mutation markers, and paid-provider boundaries.
+- `uv run --no-sync python scripts/verify_delivery.py --profile offline` runs deterministic cache, memory, guardrail, evidence, and evaluation checks without PostgreSQL, Redis, model download, or a paid API.
+- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local` runs readiness, data, RAG/MCP, authenticated workflow, cache/guardrail, and deterministic evaluation checks against the local runtime. Some stages write project-owned local records.
+
+## Domain Verification
+
+- `uv run --env-file .env --no-sync python scripts/verify_local_e2e.py` verifies two-turn chat persistence across PostgreSQL and Redis, including sessions, messages, tool logs, audit events, and short-term context. The blocked high-impact action must not create an operational alert record.
+- `uv run --env-file .env --no-sync python scripts/verify_knowledge_ingestion.py` applies the local SQL plan, ingests the default knowledge sources into PostgreSQL/pgvector, and reports persisted documents, chunks, and embeddings.
+- `uv run --env-file .env --no-sync python scripts/verify_round7_workflow.py` verifies analyst, risk operator, and supervisor account investigation, scoring, alert acknowledgement, approval, audit, and authorization behavior.
+- `uv run --env-file .env --no-sync python scripts/verify_round4_ingestion.py` verifies admin-only knowledge refresh, source manifest, persisted RAG counts, and the success audit event.
+- `uv run --env-file .env --no-sync python scripts/verify_round5_refresh.py` verifies repeatable knowledge refresh, unchanged-source no-op behavior, referential integrity, and vector dimensions.
+- `uv run --env-file .env --no-sync python scripts/verify_round6_mcp_retrieval.py` verifies server-owned access scopes, HTTP/Agent/MCP retrieval parity, citations, and disabled retrieval behavior.
+- `uv run --env-file .env --no-sync python scripts/verify_round8_evidence_layer.py` verifies Compose readiness, idempotent SQL bootstrap, controlled knowledge persistence, admin refresh, retrieval parity, citations, and disabled retrieval closure.
+- `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py` verifies risk score persistence, alert status transition, and audit history.
+- `uv run --no-sync python scripts/verify_mcp_transport.py` verifies one local SDK stdio knowledge tool call. Set `MCP_SERVER_RUNTIME=runtime` when the configured retrieval runtime is required.
+
+## Evaluation
+
+- `uv run --env-file .env --no-sync python scripts/run_agent_evaluation.py` runs the versioned deterministic agent evaluation dataset and writes a machine-readable report under `artifacts/evaluations/`.
+- `uv run --no-sync python scripts/verify_batch6_closure.py` runs the offline cache, fallback, memory, guardrail, evidence, and deterministic evaluation closure without a paid model.
+
+## Optional Paid Provider
+
+- `uv run --env-file .env --no-sync python scripts/verify_anthropic_planner.py` performs exactly one live Anthropic structured-planner request. It requires `ANTHROPIC_API_KEY`, makes one provider call, and is never part of the default offline or local delivery profiles.
+- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --stage anthropic_planner --allow-paid-provider` explicitly selects the same paid-provider boundary through the delivery pipeline.
+
+## Operational Rules
+
+- Read the command description before running a state-mutating verifier.
+- Keep `.env` local and never commit it.
+- Use the offline profile for no-infrastructure, no-download, no-cost regression checks.
+- Use the local profile only when Docker services and the project-owned local state are available.
+- Treat any paid-provider command as an explicit, separately budgeted smoke test.

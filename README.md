@@ -99,49 +99,42 @@ mcp-gateway-agents/
 - `data/`: local fixtures, knowledge inputs, and seeded assets
 - `docs/`: requirements and supporting architecture notes
 
-## Quick Start
+## Local Run
 
-### 1. Create a virtual environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 2. Install dependencies
-
-```bash
-python3 -m pip install -e .
-```
-
-### 3. Copy environment variables
+The default local deployment runs the Streamlit frontend, FastAPI backend,
+PostgreSQL/pgvector, and Redis through Docker Compose.
 
 ```bash
 cp .env.example .env
+docker compose up -d --build
 ```
 
-For a full local stack bootstrap and end-to-end verification workflow, see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+Open `http://127.0.0.1:8501/` for the authenticated workspace. The backend
+health endpoint is available at `http://127.0.0.1:8000/health`.
 
-### 4. Start the backend
+The demo workspace accounts use the password `demo-password`:
 
-```bash
-uvicorn backend.api.app:app --reload --port 8000
-```
+- `analyst_demo`
+- `risk_operator_demo`
+- `supervisor_demo`
+- `admin_demo`
 
-Open `http://127.0.0.1:8000/health` to verify the API is running.
+For host-process development, install the project with `uv sync --dev`, then
+start the backend and frontend separately. The complete local operating and
+verification reference is [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
 
-### 5. Start the frontend
+### Configuration
 
-```bash
-streamlit run frontend/app.py
-```
+The default path uses the local embedding model and deterministic planner
+fallbacks. An Anthropic API key is optional and is not required to run the
+Compose stack.
 
 ## Repository Contents
 
 The repository includes:
 
 - a backend health endpoint at `GET /health`
-- a project-owned Streamlit shell with login or role-switch entry
+- a project-owned authenticated Streamlit workspace
 - integration boundaries for trade and risk source adapters
 - SQL migrations for core schemas, identity tables, conversation tables, and audit tables
 
