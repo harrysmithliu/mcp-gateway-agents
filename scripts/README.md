@@ -8,10 +8,12 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Validates the canonical demo datasets under `data/demo/` and prints a JSON summary with dataset paths and record counts for local trade, risk, knowledge, and operations demos.
 - `python3 scripts/bootstrap_local_state.py`
   Applies local SQL migrations and seed files to the configured PostgreSQL database in deterministic filename order.
+- `uv run --env-file .env --no-sync python scripts/reset_local_state.py --scope runtime`
+  Prints a redacted dry-run plan by default. Add `--confirm` only when the local runtime state should be cleared; use `--scope demo` to also clear knowledge and reseed demo identities.
 - `python3 scripts/verify_knowledge_ingestion.py`
   Applies the local SQL plan, ingests the default knowledge source set into PostgreSQL/pgvector, and prints a JSON report that verifies persisted documents, chunks, and embeddings.
 - `python3 scripts/verify_local_e2e.py`
-  Uses the frontend HTTP client seam against a live local backend, then checks PostgreSQL and Redis to verify a real persisted chat session, messages, tool logs, audit events, and operational alert records.
+  Uses the frontend HTTP client seam against a live local backend, then checks PostgreSQL and user-scoped Redis to verify a real persisted chat session, messages, tool logs, audit events, and a blocked high-impact action without creating an operational alert record.
 - `uv run --env-file .env --no-sync python scripts/verify_anthropic_planner.py`
   Performs exactly one live Anthropic structured-planner request and prints only safe planner metadata; it does not retry or use the legacy fallback path.
 - `uv run --no-sync python scripts/verify_mcp_transport.py`
