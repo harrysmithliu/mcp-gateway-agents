@@ -12,6 +12,14 @@ This directory contains setup, seeding, indexing, and utility scripts.
   Prints a redacted dry-run plan by default. Add `--confirm` only when the local runtime state should be cleared; use `--scope demo` to also clear knowledge and reseed demo identities.
 - `uv run --no-sync python scripts/doctor_local_runtime.py`
   Runs read-only backend readiness and frontend reachability checks and prints a stable JSON report. Add `--require-frontend` when both local services are required; this command never starts, migrates, seeds, resets, or downloads a model.
+- `uv run --no-sync python scripts/verify_delivery.py --list-stages`
+  Lists the delivery verification stages, dependencies, runtime requirements, local-state mutation markers, and paid-provider boundaries.
+- `uv run --no-sync python scripts/verify_delivery.py --profile offline`
+  Runs the cache/guardrail closure, including its deterministic `core_v1` assertions, without requiring PostgreSQL, Redis, frontend, embedding downloads, or an Anthropic API key.
+- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local`
+  Runs readiness, knowledge evidence state, RAG/MCP parity, authenticated workflows, cache/guardrail closure, and deterministic evaluation against the local Compose runtime. The data-state and workflow stages may write project-owned local records.
+- `uv run --env-file .env --no-sync python scripts/verify_delivery.py --stage anthropic_planner --allow-paid-provider`
+  Explicitly opts into exactly one Anthropic planner smoke request; it is excluded from every default profile and delivery check.
 - `python3 scripts/verify_knowledge_ingestion.py`
   Applies the local SQL plan, ingests the default knowledge source set into PostgreSQL/pgvector, and prints a JSON report that verifies persisted documents, chunks, and embeddings.
 - `python3 scripts/verify_local_e2e.py`
