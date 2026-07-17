@@ -11,7 +11,6 @@ from backend.agent.models import AgentResponse, ChatCommand
 from backend.api.app import app, create_app
 from backend.api.dependencies import ApplicationContainer
 from backend.mcp_gateway.registry import MCPToolDefinition, ToolInvocationResult, ToolRegistry
-from backend.services.account_investigation import AccountInvestigationService
 
 
 def test_create_app_initializes_application_container() -> None:
@@ -102,6 +101,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
         runtime_readiness_service=original_container.runtime_readiness_service,
+        admin_runtime_status_service=original_container.admin_runtime_status_service,
     )
 
     try:
@@ -178,6 +178,7 @@ def test_tool_route_uses_app_level_registry_dependency() -> None:
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
         runtime_readiness_service=original_container.runtime_readiness_service,
+        admin_runtime_status_service=original_container.admin_runtime_status_service,
     )
 
     try:
@@ -248,6 +249,7 @@ def test_account_investigation_route_uses_app_level_service_dependency() -> None
         redis_chat_context_store=original_container.redis_chat_context_store,
         auth_service=original_container.auth_service,
         runtime_readiness_service=original_container.runtime_readiness_service,
+        admin_runtime_status_service=original_container.admin_runtime_status_service,
     )
 
     try:

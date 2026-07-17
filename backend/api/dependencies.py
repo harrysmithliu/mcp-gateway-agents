@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import Request
 
@@ -7,6 +8,7 @@ from backend.auth.passwords import PasswordService
 from backend.auth.service import AuthService
 from backend.auth.tokens import JWTTokenService
 from backend.diagnostics.readiness import RuntimeReadinessService
+from backend.diagnostics.admin_status import AdminRuntimeStatusService
 from backend.guardrails.policy import GuardrailPolicy
 from backend.agent.ports import ToolGatewayPort
 from backend.cache.policy import CacheEligibilityPolicy
@@ -59,6 +61,7 @@ class ApplicationContainer:
     redis_chat_context_store: RedisChatContextStore
     auth_service: AuthService
     runtime_readiness_service: RuntimeReadinessService
+    admin_runtime_status_service: AdminRuntimeStatusService
 
 
 def build_application_container() -> ApplicationContainer:
@@ -120,6 +123,10 @@ def build_application_container() -> ApplicationContainer:
         transport_mode=settings.mcp_transport_mode,
         server_runtime=settings.mcp_server_runtime,
     )
+    mcp_sdk_adapter = MCPSDKAdapter(
+        transport_mode=settings.mcp_transport_mode,
+        server_runtime=settings.mcp_server_runtime,
+    )
     runtime_readiness_service = RuntimeReadinessService(
         settings=settings,
         database_client=storage_bundle.database_client,
@@ -129,6 +136,13 @@ def build_application_container() -> ApplicationContainer:
         response_cache_ttl_seconds=settings.response_cache_ttl_seconds,
         response_cache_key_prefix=settings.response_cache_key_prefix,
         tool_registry=tool_gateway,
+    )
+    admin_runtime_status_service = AdminRuntimeStatusService(
+        settings=settings,
+        database_client=storage_bundle.database_client,
+        readiness_service=runtime_readiness_service,
+        mcp_sdk_adapter=mcp_sdk_adapter,
+        project_root=Path(__file__).resolve().parents[2],
     )
     return ApplicationContainer(
         agent_service=AgentService(
@@ -151,10 +165,7 @@ def build_application_container() -> ApplicationContainer:
         ),
         audit_service=AuditService(storage_bundle=storage_bundle),
         ops_workflow_service=OpsWorkflowService(storage_bundle=storage_bundle),
-        mcp_sdk_adapter=MCPSDKAdapter(
-            transport_mode=settings.mcp_transport_mode,
-            server_runtime=settings.mcp_server_runtime,
-        ),
+        mcp_sdk_adapter=mcp_sdk_adapter,
         knowledge_service=knowledge_service,
         knowledge_ingestion_service=knowledge_ingestion_service,
         risk_service=risk_service,
@@ -166,6 +177,7 @@ def build_application_container() -> ApplicationContainer:
         redis_chat_context_store=redis_chat_context_store,
         auth_service=auth_service,
         runtime_readiness_service=runtime_readiness_service,
+        admin_runtime_status_service=admin_runtime_status_service,
     )
 
 
@@ -210,3 +222,7 @@ def get_auth_service(request: Request) -> AuthService:
 
 def get_knowledge_ingestion_service(request: Request) -> KnowledgeIngestionService:
     return get_application_container(request).knowledge_ingestion_service
+
+
+def get_admin_runtime_status_service(request: Request) -> AdminRuntimeStatusService:
+    return get_application_container(request).admin_runtime_status_service

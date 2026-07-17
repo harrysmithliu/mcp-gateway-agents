@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from backend.api.dependencies import build_application_container
 from backend.api.routes.accounts import router as accounts_router
+from backend.api.routes.admin_runtime import router as admin_runtime_router
 from backend.api.routes.auth import router as auth_router
 from backend.api.routes.audit import router as audit_router
 from backend.api.routes.chat import router as chat_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     )
     app.state.container = build_application_container()
     app.include_router(accounts_router)
+    app.include_router(admin_runtime_router)
     app.include_router(auth_router)
     app.include_router(audit_router)
     app.include_router(chat_router)
