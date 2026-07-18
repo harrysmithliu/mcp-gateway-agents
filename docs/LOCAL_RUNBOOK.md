@@ -61,7 +61,9 @@ Open `http://127.0.0.1:8501/`. Sign in from the Home page sidebar using one of t
 
 The local seed uses `demo-password` for these demo identities. Change or replace this local-only seed before any non-demo deployment.
 
-The admin-only `System Status` page exposes readiness, migration, runtime mode, and MCP visibility as a read-only, redacted operational view.
+The admin-only `System Status` page exposes readiness, migration, runtime mode, and MCP visibility as a read-only, redacted operational view. Its MCP status reports the four SDK-exposed core tools: `knowledge.search`, `risk.score_account`, `trade.query_metrics`, and `ops.create_alert_or_action`.
+
+Batch scoring and audit review remain authenticated HTTP/domain workflows; they are not currently exposed through the SDK MCP server.
 
 ## 5. Optional Host-Process Path
 
@@ -102,6 +104,14 @@ Read-only runtime diagnosis:
 ```bash
 uv run --no-sync python scripts/doctor_local_runtime.py --require-frontend
 ```
+
+MCP SDK core-tool transport verification without a paid provider:
+
+```bash
+uv run --no-sync pytest tests/integration/test_mcp_stdio_transport.py tests/integration/test_mcp_transport_sdk_mode.py
+```
+
+This command verifies SDK discovery, stdio calls, and registry-to-SDK semantic payload parity for all four core MCP tools. The standalone `verify_mcp_transport.py` script remains a focused retrieval-backed `knowledge.search` check.
 
 Offline verification with no PostgreSQL, Redis, model download, or paid API:
 

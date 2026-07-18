@@ -32,7 +32,7 @@ These commands support local setup, state management, diagnostics, deterministic
 - `uv run --env-file .env --no-sync python scripts/verify_round6_mcp_retrieval.py` verifies server-owned access scopes, HTTP/Agent/MCP retrieval parity, citations, and disabled retrieval behavior.
 - `uv run --env-file .env --no-sync python scripts/verify_round8_evidence_layer.py` verifies Compose readiness, idempotent SQL bootstrap, controlled knowledge persistence, admin refresh, retrieval parity, citations, and disabled retrieval closure.
 - `uv run --env-file .env --no-sync python scripts/verify_round5_persistence.py` verifies risk score persistence, alert status transition, and audit history.
-- `uv run --no-sync python scripts/verify_mcp_transport.py` verifies one local SDK stdio knowledge tool call. Set `MCP_SERVER_RUNTIME=runtime` when the configured retrieval runtime is required.
+- `uv run --no-sync python scripts/verify_mcp_transport.py` verifies one local SDK stdio `knowledge.search` call. Set `MCP_SERVER_RUNTIME=runtime` when the configured retrieval runtime is required. The four-tool SDK discovery and parity regression command is documented in `docs/LOCAL_RUNBOOK.md`.
 
 ## Evaluation
 

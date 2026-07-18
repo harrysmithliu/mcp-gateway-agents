@@ -304,16 +304,31 @@ Knowledge-facing MCP capabilities must be backed by backend-native retrieval or 
 
 ### 9.4 MCP tool surface
 
-Minimum tool inventory:
+Delivered SDK MCP core:
 
+- `knowledge.search`
+- `risk.score_account`
 - `trade.query_metrics`
+- `ops.create_alert_or_action`
+
+These four tools are registered through the project registry and exposed through
+the official MCP Python SDK stdio server. They are the current MCP discovery and
+invocation surface for the agent and local SDK verification paths.
+
+Delivered HTTP/domain capabilities not currently exposed through the SDK MCP
+server:
+
+- `risk.batch_score`
+- `audit.fetch_recent_events`
+
+Future MCP and domain expansion:
+
 - `trade.query_account_activity`
 - `trade.render_report`
-- `risk.score_account`
-- `risk.batch_score`
-- `knowledge.search`
-- `ops.create_alert_or_action`
-- `audit.fetch_recent_events`
+
+Future tools must add a registry definition, a stable handler contract, an SDK
+adapter, and registry-to-SDK parity coverage before being described as
+MCP-exposed.
 
 ### 9.5 Guardrails
 
@@ -590,6 +605,11 @@ Deliverables:
 - seeded role-based demo users
 - integration tests for role-sensitive endpoints
 - MCP gateway design aligned with the official `modelcontextprotocol/python-sdk` documentation, with standard SDK resources evaluated for production adoption
+
+Current delivery note: `risk.batch_score` and `audit.fetch_recent_events` are
+available through authenticated HTTP/domain services. The SDK MCP server exposes
+the four delivered core tools in Section 9.4; `trade.query_account_activity` and
+`trade.render_report` remain future expansion work.
 
 Completion metrics:
 

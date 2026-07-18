@@ -12,8 +12,8 @@ This repository is the project-owned application layer for a crypto risk copilot
 - an MCP gateway for tool orchestration
 - retrieval over internal knowledge and operating rules
 - Redis-backed cache and short-term conversation context
-- local adapters to upstream trade-analysis and risk-model projects
-- project-owned operational data, alerts, cases, and audit records
+- local adapters to upstream trade-analysis and risk-source assets
+- project-owned operational data, alerts, approvals, and audit records
 
 The detailed product requirements live in [docs/PROJECT_REQUIREMENTS.md](docs/PROJECT_REQUIREMENTS.md).
 
@@ -23,8 +23,8 @@ The platform is designed for crypto trading risk operations workflows such as:
 
 - investigating unusual account or wallet activity
 - asking natural-language questions about suspicious trading behavior
-- scoring accounts with a local risk model
-- retrieving policy, model, and case knowledge with evidence
+- scoring accounts against local seeded risk profiles
+- retrieving policy and operating knowledge with evidence
 - creating alerts and review actions
 - maintaining an audit trail for operator and agent activity
 
@@ -32,7 +32,7 @@ Representative prompts:
 
 - `Which accounts became riskier in the last 24 hours?`
 - `Why was this wallet flagged as suspicious?`
-- `Show me top accounts by abnormal turnover and high model risk.`
+- `Show me top accounts by abnormal turnover and high risk scores.`
 - `Run batch risk scoring for accounts with repeated failed withdrawals.`
 
 ## Architecture
@@ -51,8 +51,8 @@ flowchart TD
 
     RAG --> DB["PostgreSQL + Vector Retrieval"]
     MCP --> TRADE["Trading Adapters"]
-    MCP --> RISK["Risk Model Adapters"]
-    MCP --> OPS["Alert / Case Tools"]
+    MCP --> RISK["Risk Source Adapter"]
+    MCP --> OPS["Alert / Approval Tools"]
 ```
 
 ## Upstream Sources
@@ -70,11 +70,18 @@ The integration approach favors local adapters over mandatory upstream APIs so t
 
 - unified frontend owned by this repository
 - RBAC-aware workflow entry and operator views
-- MCP-based tool calling for trade, risk, knowledge, and ops tasks
+- four core MCP SDK tools for knowledge search, account risk scoring, trade metrics, and action recommendations
 - retrieval-backed answers with supporting evidence
-- local risk scoring from reusable model artifacts
+- local risk scoring from seeded risk-source profiles
 - structured audit history for user actions and tool calls
 - internal SQL migrations and seed data for platform-owned state
+
+The current SDK MCP catalog is `knowledge.search`, `risk.score_account`,
+`trade.query_metrics`, and `ops.create_alert_or_action`.
+
+batch scoring and audit review are available through authenticated backend
+workflows. The current MCP SDK surface is intentionally limited to the four
+core tools listed above.
 
 ## Repository Layout
 
