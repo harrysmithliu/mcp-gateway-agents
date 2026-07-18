@@ -9,7 +9,7 @@ This runbook is the supported local path for starting the authenticated platform
 - Docker Desktop or another Docker Compose runtime, already running
 - access to the repository directory
 
-The default local workflow does not require an Anthropic API key. The local embedding model is downloaded on first use when it is not already present in the Hugging Face cache.
+The default local workflow does not require an Anthropic API key. Compose reuses the host Hugging Face cache at `${HOME}/.cache/huggingface`, so a cached local embedding model is available inside the backend container without committing model files. If the model is not cached, the first local run may download it into that host cache.
 
 ## 1. Prepare Environment
 
@@ -115,6 +115,15 @@ Local Compose verification, including state-mutating workflow stages:
 uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local
 ```
 
+For one handoff report covering runtime readiness, data state, RAG/MCP, authenticated workflow, cache/guardrails, and deterministic evaluation, run:
+
+```bash
+uv run --env-file .env --no-sync python scripts/verify_batch7_delivery.py --mode inspect
+uv run --env-file .env --no-sync python scripts/verify_batch7_delivery.py --mode verify_current --allow-local-writes
+```
+
+The `inspect` mode is read-only. The `verify_current` mode may write project-owned local records through the existing delivery stages. To verify a rebuilt demo baseline, use `reset_and_verify` only after reviewing the reset target and explicitly adding both `--allow-local-writes` and `--confirm-reset`.
+
 The local chat persistence verifier checks sessions, messages, tool invocation logs, audit events, and Redis context. Its high-impact operations action is expected to be blocked before invocation; it must not create a `risk.risk_alerts` operational record.
 
 The authenticated workflow verifier checks analyst, risk operator, and supervisor access, scoring, approval, and audit behavior. The paid Anthropic planner is never part of these default paths.
@@ -142,3 +151,4 @@ Expected manual results:
 - If the frontend cannot reach the backend, use `API_BASE_URL=http://localhost:8000` for host execution; Compose supplies `http://backend:8000` inside the frontend container.
 - If retrieval reports unavailable because the model is not cached, allow the first local model download or set `EMBEDDING_LOCAL_FILES_ONLY=true` to require an existing cache.
 - If a rebuilt endpoint returns `404`, rebuild and recreate the backend/frontend images with `docker compose up -d --build backend frontend`.
+- If the handoff report is blocked, inspect its `reason` before adding write or reset confirmation flags; a blocked report does not modify local state.

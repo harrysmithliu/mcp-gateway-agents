@@ -18,6 +18,9 @@ These commands support local setup, state management, diagnostics, deterministic
 - `uv run --no-sync python scripts/verify_delivery.py --list-stages` prints the available verification stages, dependencies, runtime requirements, local-state mutation markers, and paid-provider boundaries.
 - `uv run --no-sync python scripts/verify_delivery.py --profile offline` runs deterministic cache, memory, guardrail, evidence, and evaluation checks without PostgreSQL, Redis, model download, or a paid API.
 - `uv run --env-file .env --no-sync python scripts/verify_delivery.py --profile local` runs readiness, data, RAG/MCP, authenticated workflow, cache/guardrail, and deterministic evaluation checks against the local runtime. Some stages write project-owned local records.
+- `uv run --env-file .env --no-sync python scripts/verify_batch7_delivery.py --mode inspect` runs the read-only readiness handoff check.
+- `uv run --env-file .env --no-sync python scripts/verify_batch7_delivery.py --mode verify_current --allow-local-writes` runs the local delivery handoff against the current project-owned state.
+- `uv run --env-file .env --no-sync python scripts/verify_batch7_delivery.py --mode reset_and_verify --allow-local-writes --confirm-reset` explicitly resets demo state, then runs the local delivery handoff.
 
 ## Domain Verification
 
@@ -47,4 +50,5 @@ These commands support local setup, state management, diagnostics, deterministic
 - Keep `.env` local and never commit it.
 - Use the offline profile for no-infrastructure, no-download, no-cost regression checks.
 - Use the local profile only when Docker services and the project-owned local state are available.
+- Use `inspect` when only runtime evidence is needed; use `verify_current` or `reset_and_verify` only with explicit local-write intent.
 - Treat any paid-provider command as an explicit, separately budgeted smoke test.

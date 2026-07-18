@@ -15,6 +15,10 @@ def test_supported_documentation_surfaces_exist() -> None:
     ):
         assert (PROJECT_ROOT / relative_path).is_file()
 
+    compose = (PROJECT_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    assert "HF_HOME: /root/.cache/huggingface" in compose
+    assert "${HOME}/.cache/huggingface:/root/.cache/huggingface" in compose
+
 
 def test_readme_describes_the_current_product_entrypoint() -> None:
     content = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -33,7 +37,10 @@ def test_runbook_and_script_reference_cover_current_operating_boundaries() -> No
     assert "System Status" in runbook
     assert "verify_delivery.py --profile offline" in runbook
     assert "risk.risk_alerts" in runbook
+    assert "verify_batch7_delivery.py --mode inspect" in runbook
+    assert "--confirm-reset" in runbook
     assert "--profile offline" in scripts
+    assert "verify_batch7_delivery.py --mode verify_current" in scripts
     assert "--allow-paid-provider" in scripts
 
 
