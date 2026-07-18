@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from backend.mcp_gateway.contracts import CORE_MCP_TOOL_NAMES
+
 
 @dataclass(slots=True)
 class MCPSDKAdapter:
@@ -23,7 +25,7 @@ class MCPSDKAdapter:
                 "sdk_stable_line": "v1",
                 "transport_mode": self.transport_mode,
                 "server_runtime": self.server_runtime,
-                "sdk_tool_names": ["knowledge.search"],
+                "sdk_tool_names": list(CORE_MCP_TOOL_NAMES),
                 "integration_mode": "registry_fallback",
                 "client_symbols": [],
                 "server_symbols": [],
@@ -49,7 +51,7 @@ class MCPSDKAdapter:
             "sdk_stable_line": "v1",
             "transport_mode": self.transport_mode,
             "server_runtime": self.server_runtime,
-            "sdk_tool_names": ["knowledge.search"],
+            "sdk_tool_names": list(CORE_MCP_TOOL_NAMES),
             "integration_mode": "sdk_ready",
             "client_symbols": client_symbols,
             "server_symbols": server_symbols,

@@ -4,6 +4,15 @@ from backend.mcp_gateway.models import MCPToolDefinition, ToolInvocationResult
 
 
 KNOWLEDGE_SEARCH_TOOL_NAME = "knowledge.search"
+RISK_SCORE_ACCOUNT_TOOL_NAME = "risk.score_account"
+TRADE_QUERY_METRICS_TOOL_NAME = "trade.query_metrics"
+OPS_CREATE_ALERT_OR_ACTION_TOOL_NAME = "ops.create_alert_or_action"
+CORE_MCP_TOOL_NAMES = (
+    KNOWLEDGE_SEARCH_TOOL_NAME,
+    RISK_SCORE_ACCOUNT_TOOL_NAME,
+    TRADE_QUERY_METRICS_TOOL_NAME,
+    OPS_CREATE_ALERT_OR_ACTION_TOOL_NAME,
+)
 
 
 @dataclass(frozen=True, slots=True)

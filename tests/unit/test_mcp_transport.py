@@ -1,5 +1,4 @@
-import asyncio
-
+from backend.mcp_gateway.contracts import CORE_MCP_TOOL_NAMES
 from backend.mcp_gateway.models import MCPToolDefinition, ToolInvocationResult
 from backend.mcp_gateway.transport import MCPTransportRouter
 
@@ -9,14 +8,23 @@ class FakeRegistry:
         self.registry_calls: list[str] = []
 
     def get_tool(self, tool_name: str) -> MCPToolDefinition | None:
+        domains = {
+            "knowledge.search": "knowledge",
+            "risk.score_account": "risk",
+            "trade.query_metrics": "trade",
+            "ops.create_alert_or_action": "operations",
+        }
+        domain = domains.get(tool_name)
+        if domain is None:
+            return None
         return MCPToolDefinition(
             name=tool_name,
-            domain="knowledge",
+            domain=domain,
             description="Fake tool.",
         )
 
     def list_tool_names(self) -> list[str]:
-        return ["knowledge.search", "risk.score_account"]
+        return list(CORE_MCP_TOOL_NAMES)
 
     def preview_knowledge_matches(
         self,
@@ -77,7 +85,7 @@ def test_registry_mode_keeps_registry_invocation_default() -> None:
     assert sdk_client.calls == []
 
 
-def test_sdk_mode_routes_allowlisted_tool_and_preserves_other_tools() -> None:
+def test_sdk_mode_routes_all_core_tools_through_the_sdk_client() -> None:
     registry = FakeRegistry()
     sdk_client = FakeSDKClient()
     router = MCPTransportRouter(
@@ -86,9 +94,8 @@ def test_sdk_mode_routes_allowlisted_tool_and_preserves_other_tools() -> None:
         sdk_client=sdk_client,
     )
 
-    sdk_result = router.invoke(
-        "knowledge.search",
-        {
+    payloads = {
+        "knowledge.search": {
             "query": "policy",
             "access_level": "restricted",
             "authorization_context": {
@@ -96,12 +103,18 @@ def test_sdk_mode_routes_allowlisted_tool_and_preserves_other_tools() -> None:
                 "allowed_access_levels": ["internal"],
             },
         },
-    )
-    registry_result = router.invoke("risk.score_account", {"query": "account"})
+        "risk.score_account": {"query": "account", "limit": 2},
+        "trade.query_metrics": {"query": "atlas trade", "limit": 2},
+        "ops.create_alert_or_action": {"query": "alert review", "limit": 2},
+    }
 
-    assert sdk_result.response_payload == {"source": "sdk"}
-    assert sdk_result.transport == "sdk_stdio"
-    assert registry_result.response_payload == {"source": "registry"}
+    results = {
+        tool_name: router.invoke(tool_name, request_payload)
+        for tool_name, request_payload in payloads.items()
+    }
+
+    assert all(result.response_payload == {"source": "sdk"} for result in results.values())
+    assert all(result.transport == "sdk_stdio" for result in results.values())
     assert sdk_client.calls == [
         (
             "knowledge.search",
@@ -110,9 +123,16 @@ def test_sdk_mode_routes_allowlisted_tool_and_preserves_other_tools() -> None:
                 "access_level": "internal",
                 "allowed_access_levels": ["internal"],
             },
-        )
+        ),
+        ("risk.score_account", {"query": "account", "limit": 2}, None),
+        ("trade.query_metrics", {"query": "atlas trade", "limit": 2}, None),
+        (
+            "ops.create_alert_or_action",
+            {"query": "alert review", "limit": 2},
+            None,
+        ),
     ]
-    assert registry.registry_calls == ["risk.score_account"]
+    assert registry.registry_calls == []
 
 
 def test_sdk_failure_falls_back_to_registry() -> None:

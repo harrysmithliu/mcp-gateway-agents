@@ -26,7 +26,12 @@ def test_mcp_sdk_status_route_returns_stable_payload() -> None:
     assert "recommended_next_step" in payload
     assert payload["transport_mode"] == "registry"
     assert payload["server_runtime"] == "preview"
-    assert payload["sdk_tool_names"] == ["knowledge.search"]
+    assert payload["sdk_tool_names"] == [
+        "knowledge.search",
+        "risk.score_account",
+        "trade.query_metrics",
+        "ops.create_alert_or_action",
+    ]
 
 
 def test_mcp_sdk_status_route_requires_admin_principal() -> None:

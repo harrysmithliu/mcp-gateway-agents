@@ -1,6 +1,14 @@
 from backend.mcp_gateway.sdk_adapter import MCPSDKAdapter
 
 
+EXPECTED_SDK_TOOL_NAMES = [
+    "knowledge.search",
+    "risk.score_account",
+    "trade.query_metrics",
+    "ops.create_alert_or_action",
+]
+
+
 def test_mcp_sdk_adapter_returns_stable_status_payload() -> None:
     adapter = MCPSDKAdapter()
 
@@ -10,7 +18,7 @@ def test_mcp_sdk_adapter_returns_stable_status_payload() -> None:
     assert response_payload["sdk_stable_line"] == "v1"
     assert response_payload["transport_mode"] == "registry"
     assert response_payload["server_runtime"] == "preview"
-    assert response_payload["sdk_tool_names"] == ["knowledge.search"]
+    assert response_payload["sdk_tool_names"] == EXPECTED_SDK_TOOL_NAMES
     assert "integration_mode" in response_payload
     assert "recommended_next_step" in response_payload
     assert isinstance(response_payload["client_symbols"], list)

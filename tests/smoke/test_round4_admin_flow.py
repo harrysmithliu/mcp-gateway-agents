@@ -21,7 +21,12 @@ def test_admin_can_review_knowledge_runs_and_mcp_status() -> None:
     mcp_payload = assert_success(client.get("/mcp/sdk-status"))
     assert mcp_payload["transport_mode"] == "registry"
     assert mcp_payload["server_runtime"] == "preview"
-    assert mcp_payload["sdk_tool_names"] == ["knowledge.search"]
+    assert mcp_payload["sdk_tool_names"] == [
+        "knowledge.search",
+        "risk.score_account",
+        "trade.query_metrics",
+        "ops.create_alert_or_action",
+    ]
 
 
 def test_admin_knowledge_run_detail_preserves_not_found_contract() -> None:

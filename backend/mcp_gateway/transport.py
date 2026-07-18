@@ -7,6 +7,7 @@ from typing import Any
 
 from backend.agent.ports import ToolGatewayPort
 from backend.mcp_gateway.contracts import (
+    CORE_MCP_TOOL_NAMES,
     KNOWLEDGE_SEARCH_TOOL_NAME,
     build_mcp_client_arguments,
     build_mcp_tool_call,
@@ -26,7 +27,7 @@ class MCPTransportRouter:
     transport_mode: str = "registry"
     sdk_client: Any | None = None
     server_runtime: str = "preview"
-    sdk_tool_names: tuple[str, ...] = (KNOWLEDGE_SEARCH_TOOL_NAME,)
+    sdk_tool_names: tuple[str, ...] = CORE_MCP_TOOL_NAMES
 
     def __getattr__(self, attribute_name: str) -> Any:
         """Keep registry-specific test and inspection access compatible."""

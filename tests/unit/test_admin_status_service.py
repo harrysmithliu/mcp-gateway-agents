@@ -69,7 +69,12 @@ class FakeMCPAdapter:
             "sdk_stable_line": "v1",
             "transport_mode": "registry",
             "server_runtime": "preview",
-            "sdk_tool_names": ["knowledge.search"],
+            "sdk_tool_names": [
+                "knowledge.search",
+                "risk.score_account",
+                "trade.query_metrics",
+                "ops.create_alert_or_action",
+            ],
             "integration_mode": "sdk_ready",
             "recommended_next_step": "Keep registry transport as the default.",
             "client_symbols": ["Client"],
@@ -110,7 +115,12 @@ def test_admin_runtime_status_service_aggregates_safe_runtime_views() -> None:
         "applied_count": 0,
         "reason": "migration_scripts_applied",
     }
-    assert payload["mcp"]["sdk_tool_names"] == ["knowledge.search"]
+    assert payload["mcp"]["sdk_tool_names"] == [
+        "knowledge.search",
+        "risk.score_account",
+        "trade.query_metrics",
+        "ops.create_alert_or_action",
+    ]
     assert "client_symbols" not in payload["mcp"]
 
 

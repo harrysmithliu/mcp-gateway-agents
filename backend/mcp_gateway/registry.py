@@ -2,6 +2,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from backend.mcp_gateway.models import MCPToolDefinition, ToolInvocationResult
+from backend.mcp_gateway.contracts import (
+    KNOWLEDGE_SEARCH_TOOL_NAME,
+    OPS_CREATE_ALERT_OR_ACTION_TOOL_NAME,
+    RISK_SCORE_ACCOUNT_TOOL_NAME,
+    TRADE_QUERY_METRICS_TOOL_NAME,
+)
 from backend.mcp_gateway.tools.handlers import (
     ToolInvocationHandler,
     build_default_tool_handlers,
@@ -13,22 +19,22 @@ from backend.services.risk import RiskService
 from backend.services.trade import TradeService
 DEFAULT_MCP_TOOL_DEFINITIONS = (
     MCPToolDefinition(
-        name="knowledge.search",
+        name=KNOWLEDGE_SEARCH_TOOL_NAME,
         domain="knowledge",
         description="Search internal knowledge and return evidence candidates.",
     ),
     MCPToolDefinition(
-        name="risk.score_account",
+        name=RISK_SCORE_ACCOUNT_TOOL_NAME,
         domain="risk",
         description="Score a single account for risk review.",
     ),
     MCPToolDefinition(
-        name="trade.query_metrics",
+        name=TRADE_QUERY_METRICS_TOOL_NAME,
         domain="trade",
         description="Retrieve trade and wallet metrics for analysis.",
     ),
     MCPToolDefinition(
-        name="ops.create_alert_or_action",
+        name=OPS_CREATE_ALERT_OR_ACTION_TOOL_NAME,
         domain="operations",
         description="Prepare an alert or follow-up action payload.",
     ),
