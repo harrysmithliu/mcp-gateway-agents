@@ -30,6 +30,7 @@ class ChatCommand:
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
     user_id: int | None = None
     authorization_context: dict[str, object] | None = None
+    request_id: str | None = None
 
 
 @dataclass(slots=True)

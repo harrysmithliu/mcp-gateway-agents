@@ -189,6 +189,7 @@ def test_tool_call_log_repository_builds_insert_statement() -> None:
             response_payload={"matches": 3},
             error_message=None,
             latency_ms=42,
+            request_id="78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
         )
     )
 
@@ -198,6 +199,7 @@ def test_tool_call_log_repository_builds_insert_statement() -> None:
         "session_id": "session-1",
         "message_id": "message-1",
         "actor_user_id": 101,
+        "request_id": "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
         "tool_namespace": "knowledge",
         "tool_name": "knowledge.search",
         "call_status": "completed",
@@ -220,6 +222,7 @@ def test_audit_event_repository_builds_insert_statement() -> None:
             event_type="tool_invocation",
             event_summary="Knowledge search executed.",
             event_payload={"tool_name": "knowledge.search"},
+            request_id="78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
         )
     )
 
@@ -227,11 +230,25 @@ def test_audit_event_repository_builds_insert_statement() -> None:
     assert statement.params == {
         "event_id": "event-1",
         "actor_user_id": 101,
+        "request_id": "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
         "event_type": "tool_invocation",
         "event_summary": "Knowledge search executed.",
         "event_payload": {"tool_name": "knowledge.search"},
     }
     assert executor.statements == [statement]
+
+
+def test_audit_repositories_filter_recent_records_by_request_id() -> None:
+    request_id = "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9"
+    executor = FetchFakeExecutor([])
+
+    AuditEventRepository(executor=executor).list_recent_events(request_id=request_id)
+    ToolCallLogRepository(executor=executor).list_recent_tool_calls(request_id=request_id)
+
+    assert "request_id = %(request_id)s" in executor.statements[0].sql
+    assert executor.statements[0].params["request_id"] == request_id
+    assert "request_id = %(request_id)s" in executor.statements[1].sql
+    assert executor.statements[1].params["request_id"] == request_id
 
 
 def test_risk_alert_repository_builds_insert_statement() -> None:

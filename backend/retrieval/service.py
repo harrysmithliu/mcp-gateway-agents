@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from time import perf_counter
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from backend.retrieval.contracts import (
@@ -35,6 +36,7 @@ class RetrievalService:
     enabled: bool = True
     runtime_error: str | None = None
     minimum_similarity: float = 0.15
+    runtime_switch_is_enabled: Callable[[str, bool], bool] | None = None
 
     def describe(self) -> str:
         return "Retrieval service backed by configured embeddings and PostgreSQL/pgvector."
@@ -42,7 +44,7 @@ class RetrievalService:
     def runtime_status(self) -> RetrievalRuntimeStatus:
         """Return the public, non-secret state of this retrieval runtime."""
 
-        if not self.enabled:
+        if not self._is_runtime_enabled():
             return RetrievalRuntimeStatus(
                 state="disabled",
                 enabled=False,
@@ -50,7 +52,7 @@ class RetrievalService:
                 provider=self._provider_name,
                 model_name=self._model_name,
                 vector_dimensions=self._vector_dimensions,
-                reason="disabled_by_configuration",
+                reason=self._runtime_disable_reason(),
             )
 
         if self.runtime_error is not None:
@@ -92,7 +94,7 @@ class RetrievalService:
         """Run one configured vector search and map rows into RAG contracts."""
 
         started_at = perf_counter()
-        if not self.enabled:
+        if not self._is_runtime_enabled():
             return self._build_runtime_disabled_result(query)
 
         if self.runtime_error is not None:
@@ -168,7 +170,7 @@ class RetrievalService:
                 top_k=query.top_k,
                 filters=self._build_filter_payload(query),
                 status="disabled",
-                failure_reason="disabled_by_configuration",
+                failure_reason=self._runtime_disable_reason(),
             ),
         )
 
@@ -201,6 +203,18 @@ class RetrievalService:
     @property
     def _vector_dimensions(self) -> int | None:
         return self.embedding_config.vector_dimensions if self.embedding_config else None
+
+    def _is_runtime_enabled(self) -> bool:
+        if not self.enabled:
+            return False
+        if self.runtime_switch_is_enabled is None:
+            return True
+        return self.runtime_switch_is_enabled("retrieval_enabled", True)
+
+    def _runtime_disable_reason(self) -> str:
+        if not self.enabled:
+            return "disabled_by_configuration"
+        return "disabled_by_runtime_switch"
 
     @staticmethod
     def _build_latency_ms(started_at: float) -> int:

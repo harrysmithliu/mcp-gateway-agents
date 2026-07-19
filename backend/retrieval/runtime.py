@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from backend.retrieval.embedding_provider import (
     EmbeddingProvider,
     LocalSentenceTransformerEmbeddingProvider,
@@ -38,6 +40,7 @@ def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
 def build_retrieval_service(
     settings: Settings,
     knowledge_search_repository: KnowledgeSearchRepository,
+    runtime_switch_is_enabled: Callable[[str, bool], bool] | None = None,
 ) -> RetrievalService:
     """Build the retrieval orchestrator with one shared runtime configuration."""
 
@@ -46,6 +49,7 @@ def build_retrieval_service(
         return RetrievalService(
             embedding_config=embedding_config,
             enabled=False,
+            runtime_switch_is_enabled=runtime_switch_is_enabled,
         )
 
     try:
@@ -55,6 +59,7 @@ def build_retrieval_service(
             embedding_config=embedding_config,
             enabled=True,
             runtime_error=type(exc).__name__,
+            runtime_switch_is_enabled=runtime_switch_is_enabled,
         )
 
     return RetrievalService(
@@ -62,4 +67,5 @@ def build_retrieval_service(
         embedding_provider=embedding_provider,
         knowledge_search_repository=knowledge_search_repository,
         minimum_similarity=settings.retrieval_min_similarity,
+        runtime_switch_is_enabled=runtime_switch_is_enabled,
     )

@@ -4,12 +4,12 @@ from backend.auth.context import AuthorizationContext
 from backend.agent.ports import ToolGatewayPort
 from backend.api.schemas.chat import ChatRequest, ChatResponse
 from backend.mcp_gateway.models import ToolInvocationResult
-from backend.mcp_gateway.registry import ToolRegistry
 
 
 def build_chat_command(
     request: ChatRequest,
     principal: IdentityPrincipal | None = None,
+    request_id: str | None = None,
 ) -> ChatCommand:
     return ChatCommand(
         user_role=principal.primary_role if principal is not None else request.user_role,
@@ -21,6 +21,7 @@ def build_chat_command(
             if principal is not None
             else None
         ),
+        request_id=request_id,
         recent_messages=[
             ChatHistoryMessage(
                 role=recent_message.role,

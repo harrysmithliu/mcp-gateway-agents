@@ -90,11 +90,11 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
         audit_service=original_container.audit_service,
         ops_workflow_service=original_container.ops_workflow_service,
         mcp_sdk_adapter=original_container.mcp_sdk_adapter,
-            knowledge_service=original_container.knowledge_service,
-            knowledge_ingestion_service=original_container.knowledge_ingestion_service,
-            risk_service=original_container.risk_service,
-            risk_batch_score_service=original_container.risk_batch_score_service,
-            trade_service=original_container.trade_service,
+        knowledge_service=original_container.knowledge_service,
+        knowledge_ingestion_service=original_container.knowledge_ingestion_service,
+        risk_service=original_container.risk_service,
+        risk_batch_score_service=original_container.risk_batch_score_service,
+        trade_service=original_container.trade_service,
         operations_service=original_container.operations_service,
         storage_bundle=original_container.storage_bundle,
         chat_persistence_coordinator=original_container.chat_persistence_coordinator,
@@ -112,6 +112,7 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
                 "user_role": "analyst",
                 "message_text": "Search the policy playbook.",
             },
+            headers={"X-Request-ID": "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9"},
         )
     finally:
         app.state.container = original_container
@@ -121,18 +122,19 @@ def test_chat_route_uses_app_level_container_dependencies() -> None:
     assert fake_agent_service.received_commands == [
         ChatCommand(
             user_role="analyst",
-                message_text="Search the policy playbook.",
-                session_id=None,
-                recent_messages=[],
-                user_id=1,
-                authorization_context={
-                    "user_id": 1,
-                    "username": "analyst_demo",
-                    "roles": ("analyst",),
-                    "access_level": "internal",
-                    "allowed_access_levels": ("internal",),
-                },
-            )
+            message_text="Search the policy playbook.",
+            session_id=None,
+            recent_messages=[],
+            user_id=1,
+            authorization_context={
+                "user_id": 1,
+                "username": "analyst_demo",
+                "roles": ("analyst",),
+                "access_level": "internal",
+                "allowed_access_levels": ("internal",),
+            },
+            request_id="78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
+        )
     ]
 
 

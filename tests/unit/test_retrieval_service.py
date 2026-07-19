@@ -176,6 +176,22 @@ def test_retrieval_service_returns_disabled_result_when_runtime_is_disabled() ->
     assert result.metadata.failure_reason == "disabled_by_configuration"
 
 
+def test_retrieval_service_honors_runtime_switch_without_overriding_configuration() -> None:
+    service = RetrievalService(
+        embedding_config=EmbeddingConfig(
+            provider="local_sentence_transformer",
+            model_name="switchable-model",
+            vector_dimensions=384,
+        ),
+        runtime_switch_is_enabled=lambda key, default: False,
+    )
+
+    result = service.retrieve(RetrievalQuery(text="policy evidence"))
+
+    assert result.metadata.status == "disabled"
+    assert result.metadata.failure_reason == "disabled_by_runtime_switch"
+
+
 def test_retrieval_service_returns_unavailable_result_for_runtime_configuration_error() -> None:
     service = RetrievalService(
         embedding_config=EmbeddingConfig(

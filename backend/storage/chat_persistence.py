@@ -43,6 +43,7 @@ class ChatPersistenceExchange:
     recent_messages: list[ChatHistoryMessage] = field(default_factory=list)
     user_id: int | None = None
     browser_session_id: str | None = None
+    request_id: str | None = None
 
 
 class ChatSessionAccessError(PermissionError):
@@ -365,6 +366,7 @@ class ChatPersistenceCoordinator:
                         response_payload=tool_invocation_result.response_payload,
                         error_message=None,
                         latency_ms=None,
+                        request_id=exchange.request_id,
                     )
                 )
             exchange.tool_logs_persisted = True
@@ -387,6 +389,7 @@ class ChatPersistenceCoordinator:
                 AuditEventRecord(
                     event_id=self.build_message_id(),
                     actor_user_id=exchange.user_id,
+                    request_id=exchange.request_id,
                     event_type="chat_exchange_completed",
                     event_summary="Chat exchange completed with persisted artifacts.",
                     event_payload={
@@ -521,6 +524,7 @@ class ChatPersistenceCoordinator:
             recent_messages=list(command.recent_messages),
             user_id=command.user_id,
             browser_session_id=None,
+            request_id=command.request_id,
         )
         self.ensure_chat_session(exchange)
         self.append_user_message(exchange)

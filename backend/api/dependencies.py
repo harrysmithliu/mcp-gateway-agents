@@ -19,6 +19,7 @@ from backend.mcp_gateway.transport import build_mcp_transport_router
 from backend.retrieval.runtime import build_retrieval_service
 from backend.retrieval.service import RetrievalService
 from backend.services.audit import AuditService
+from backend.services.admin_identity import AdminIdentityService
 from backend.services.account_investigation import AccountInvestigationService
 from backend.services.accounts import AccountDomainService
 from backend.services.knowledge import KnowledgeService
@@ -30,6 +31,7 @@ from backend.services.operations import OperationsService
 from backend.services.ops_workflow import OpsWorkflowService
 from backend.services.risk import RiskService
 from backend.services.risk_batch import RiskBatchScoreService
+from backend.services.runtime_switches import RuntimeSwitchService
 from backend.storage.chat_persistence import ChatPersistenceCoordinator
 from backend.storage.redis_chat_context import RedisChatContextStore
 from backend.storage.runtime import StorageBundle, build_storage_bundle
@@ -62,6 +64,8 @@ class ApplicationContainer:
     auth_service: AuthService
     runtime_readiness_service: RuntimeReadinessService
     admin_runtime_status_service: AdminRuntimeStatusService
+    admin_identity_service: AdminIdentityService | None = None
+    runtime_switch_service: RuntimeSwitchService | None = None
 
 
 def build_application_container() -> ApplicationContainer:
@@ -84,9 +88,15 @@ def build_application_container() -> ApplicationContainer:
         ),
         allow_multiple_identities=settings.auth_allow_multiple_identities,
     )
+    runtime_switch_service = RuntimeSwitchService(
+        database_client=storage_bundle.database_client,
+        runtime_switch_repository=storage_bundle.runtime_switch_repository,
+        audit_event_repository=storage_bundle.audit_event_repository,
+    )
     retrieval_service = build_retrieval_service(
         settings=settings,
         knowledge_search_repository=storage_bundle.knowledge_search_repository,
+        runtime_switch_is_enabled=runtime_switch_service.is_enabled,
     )
     knowledge_ingestion_service = build_knowledge_ingestion_service(
         storage_bundle=storage_bundle,
@@ -144,6 +154,12 @@ def build_application_container() -> ApplicationContainer:
         mcp_sdk_adapter=mcp_sdk_adapter,
         project_root=Path(__file__).resolve().parents[2],
     )
+    admin_identity_service = AdminIdentityService(
+        database_client=storage_bundle.database_client,
+        identity_repository=storage_bundle.identity_repository,
+        audit_event_repository=storage_bundle.audit_event_repository,
+        password_service=PasswordService(),
+    )
     return ApplicationContainer(
         agent_service=AgentService(
             retrieval_service=retrieval_service,
@@ -153,6 +169,7 @@ def build_application_container() -> ApplicationContainer:
             response_cache=response_cache,
             cache_policy=cache_policy,
             response_cache_enabled=settings.response_cache_enabled,
+            runtime_switch_is_enabled=runtime_switch_service.is_enabled,
         ),
         tool_registry=tool_gateway,
         retrieval_service=retrieval_service,
@@ -178,6 +195,8 @@ def build_application_container() -> ApplicationContainer:
         auth_service=auth_service,
         runtime_readiness_service=runtime_readiness_service,
         admin_runtime_status_service=admin_runtime_status_service,
+        admin_identity_service=admin_identity_service,
+        runtime_switch_service=runtime_switch_service,
     )
 
 
@@ -226,3 +245,17 @@ def get_knowledge_ingestion_service(request: Request) -> KnowledgeIngestionServi
 
 def get_admin_runtime_status_service(request: Request) -> AdminRuntimeStatusService:
     return get_application_container(request).admin_runtime_status_service
+
+
+def get_admin_identity_service(request: Request) -> AdminIdentityService:
+    service = get_application_container(request).admin_identity_service
+    if service is None:
+        raise RuntimeError("Admin identity service is not initialized.")
+    return service
+
+
+def get_runtime_switch_service(request: Request) -> RuntimeSwitchService:
+    service = get_application_container(request).runtime_switch_service
+    if service is None:
+        raise RuntimeError("Runtime switch service is not initialized.")
+    return service

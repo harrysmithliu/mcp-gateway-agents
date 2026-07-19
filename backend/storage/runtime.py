@@ -18,6 +18,7 @@ from backend.storage.repositories.risk_alert_status_events import (
 )
 from backend.storage.repositories.risk_alert_approvals import RiskAlertApprovalRepository
 from backend.storage.repositories.risk_batch_scores import RiskBatchScoreRepository
+from backend.storage.repositories.runtime_switches import RuntimeSwitchRepository
 from backend.storage.repositories.tool_call_logs import ToolCallLogRepository
 from backend.storage.settings import Settings
 
@@ -42,6 +43,7 @@ class StorageBundle:
     knowledge_search_repository: KnowledgeSearchRepository
     knowledge_ingestion_run_repository: KnowledgeIngestionRunRepository
     identity_repository: IdentityRepository
+    runtime_switch_repository: RuntimeSwitchRepository
 
 
 def build_storage_bundle(settings: Settings) -> StorageBundle:
@@ -68,4 +70,5 @@ def build_storage_bundle(settings: Settings) -> StorageBundle:
             executor=database_client
         ),
         identity_repository=IdentityRepository(executor=database_client),
+        runtime_switch_repository=RuntimeSwitchRepository(executor=database_client),
     )

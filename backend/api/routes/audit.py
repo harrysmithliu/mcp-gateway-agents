@@ -22,12 +22,14 @@ def get_recent_audit_events(
     event_type: str | None = None,
     session_id: str | None = None,
     actor_user_id: int | None = None,
+    request_id: str | None = None,
 ) -> dict[str, object]:
     return audit_service.list_recent_events(
         limit=limit,
         event_type=event_type,
         session_id=session_id,
         actor_user_id=actor_user_id,
+        request_id=request_id,
     )
 
 
@@ -42,10 +44,12 @@ def get_recent_tool_invocations(
     session_id: str | None = None,
     tool_name: str | None = None,
     call_status: str | None = None,
+    request_id: str | None = None,
 ) -> dict[str, object]:
     return audit_service.list_tool_invocations(
         limit=limit,
         session_id=session_id,
         tool_name=tool_name,
         call_status=call_status,
+        request_id=request_id,
     )

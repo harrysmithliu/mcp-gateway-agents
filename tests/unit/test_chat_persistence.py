@@ -521,6 +521,7 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
             user_role="analyst",
             message_text="Search the policy playbook and score this account.",
             session_id="session-round-4",
+            request_id="78bb5a9e-9bc9-4867-aee2-e01922ab6bd9",
         ),
         normalized_role="analyst",
         normalized_text="Search the policy playbook and score this account.",
@@ -570,9 +571,14 @@ def test_chat_persistence_coordinator_persists_tool_logs_and_audit_event() -> No
         record.message_id == exchange.user_message_id
         for record in storage_bundle.tool_call_log_repository.records
     )
+    assert all(
+        record.request_id == "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9"
+        for record in storage_bundle.tool_call_log_repository.records
+    )
     assert len(storage_bundle.audit_event_repository.records) == 1
     audit_event = storage_bundle.audit_event_repository.records[0]
     assert audit_event.event_type == "chat_exchange_completed"
+    assert audit_event.request_id == "78bb5a9e-9bc9-4867-aee2-e01922ab6bd9"
     assert audit_event.event_payload["session_id"] == "session-round-4"
     assert audit_event.event_payload["tool_invocation_count"] == 2
     assert audit_event.event_payload["write_order"] == result.write_order

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field, replace
+from collections.abc import Callable
 from time import perf_counter
 
 from pydantic import ValidationError
@@ -116,6 +117,7 @@ class AgentService:
     response_cache: ResponseCachePort | None = None
     cache_policy: CacheEligibilityPolicy | None = None
     response_cache_enabled: bool = False
+    runtime_switch_is_enabled: Callable[[str, bool], bool] | None = None
     cache_context_revision: str = DEFAULT_CACHE_CONTEXT_REVISION
 
     def describe(self) -> str:
@@ -798,9 +800,15 @@ class AgentService:
     def _cache_is_active(self) -> bool:
         return (
             self.response_cache_enabled
+            and self._response_cache_runtime_enabled()
             and self.response_cache is not None
             and self.cache_policy is not None
         )
+
+    def _response_cache_runtime_enabled(self) -> bool:
+        if self.runtime_switch_is_enabled is None:
+            return True
+        return self.runtime_switch_is_enabled("response_cache_enabled", True)
 
     @staticmethod
     def _authorization_scope(

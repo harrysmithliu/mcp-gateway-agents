@@ -62,6 +62,20 @@ class ApiClient:
     ) -> dict[str, object]:
         return self.request_json("POST", endpoint_path, payload=payload)
 
+    def put(
+        self,
+        endpoint_path: str,
+        payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self.request_json("PUT", endpoint_path, payload=payload)
+
+    def patch(
+        self,
+        endpoint_path: str,
+        payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self.request_json("PATCH", endpoint_path, payload=payload)
+
     @staticmethod
     def _read_error_detail(exc: error.HTTPError) -> str:
         try:

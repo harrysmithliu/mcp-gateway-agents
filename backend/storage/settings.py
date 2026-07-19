@@ -10,6 +10,7 @@ class Settings:
     api_host: str = os.getenv("API_HOST", "127.0.0.1")
     api_port: int = int(os.getenv("API_PORT", "8000"))
     streamlit_server_port: int = int(os.getenv("STREAMLIT_SERVER_PORT", "8501"))
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
     database_url: str = os.getenv(
         "DATABASE_URL",
         "postgresql://postgres:postgres@localhost:5432/mcp_gateway_agents",

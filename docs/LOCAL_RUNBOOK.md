@@ -57,11 +57,15 @@ Open `http://127.0.0.1:8501/`. Sign in from the Home page sidebar using one of t
 - `analyst_demo` for evidence and investigation flows
 - `risk_operator_demo` for scoring and alert acknowledgement
 - `supervisor_demo` for approval and audit review
-- `admin_demo` for knowledge administration and System Status
+- `admin_demo` for knowledge administration, System Status, and Identity Management
 
 The local seed uses `demo-password` for these demo identities. Change or replace this local-only seed before any non-demo deployment.
 
 The admin-only `System Status` page exposes readiness, migration, runtime mode, and MCP visibility as a read-only, redacted operational view. Its MCP status reports the four SDK-exposed core tools: `knowledge.search`, `risk.score_account`, `trade.query_metrics`, and `ops.create_alert_or_action`.
+
+The admin-only `Identity Management` page manages local users, role bindings, active status, and three allowlisted runtime switches. Role changes and user deactivation revoke the target user's active sessions. The page never exposes passwords or password hashes.
+
+The runtime switches are intentionally limited to `response_cache_enabled`, `retrieval_enabled`, and `maintenance_mode`; they cannot change secrets, provider settings, database/Redis URLs, or Compose configuration. When maintenance mode is active, normal application workflows return `503`, while `/health`, `/auth/login`, and authenticated `/admin/*` recovery paths remain available.
 
 Batch scoring and audit review remain authenticated HTTP/domain workflows; they are not currently exposed through the SDK MCP server.
 
@@ -88,6 +92,8 @@ uv run --env-file .env --no-sync python scripts/seed_demo_data.py
 ```
 
 `bootstrap_local_state.py` is idempotent and records applied files in `public.local_sql_scripts`. `seed_demo_data.py` validates the canonical local demo datasets; it does not call a paid model.
+
+The SQL plan now includes `014_create_runtime_switches.sql`, which creates and seeds the safe runtime switch defaults. Apply the SQL plan before attempting to use the Identity Management page on a host-process deployment.
 
 Inspect reset effects before changing local state:
 

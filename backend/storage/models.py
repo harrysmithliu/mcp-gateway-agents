@@ -29,6 +29,7 @@ class ToolCallLogRecord:
     actor_user_id: int | None = None
     error_message: str | None = None
     latency_ms: int | None = None
+    request_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +39,7 @@ class AuditEventRecord:
     event_summary: str
     event_payload: dict[str, object] = field(default_factory=dict)
     actor_user_id: int | None = None
+    request_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
